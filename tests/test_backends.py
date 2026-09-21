@@ -89,8 +89,16 @@ def test_default_kalm_sends_all_heads_once_and_maps_observed_dropdown(http, page
     assert set(body["questions"]["type_text_target"]["criteria"]) == {"1"}
     assert set(body["questions"]["select_target"]["criteria"]) == {"3:1", "3:2"}
     assert body["questions"]["select_target"]["criteria"]["3:2"]["current_value"] == "Any"
-    assert len(body["state"]["elements"]) == 3
-    assert body["state"]["elements"][2]["options"][1]["value"] == "free"
+    assert "Find a room with free cancellation" in body["state"]
+    observation = json.loads(body["questions"]["operation"]["instructions"].split("untrusted data):\n")[1])
+    assert len(observation["elements"]) == 3
+    assert observation["page"]["text"] == page["text"]
+    for question in body["questions"].values():
+        assert model.NEXT_ACTION in question["instructions"]
+        assert question["instructions"].endswith(json.dumps(observation, ensure_ascii=False))
+    assert "[2] Search" in body["questions"]["operation"]["criteria"]["CLICK"]
+    assert 'already open page titled "Find a room"' in body["questions"]["operation"]["criteria"]["DONE"]
+    assert observation["elements"][2]["options"][1]["value"] == "free"
     assert (decision["provider"], decision["operation"], decision["target"], decision["choice"]) == (
         "kalm", "SELECT", "3:2", "policy-free"
     )
@@ -111,6 +119,20 @@ def test_explicit_typesafe_uses_legacy_credentials_and_model(http, page, monkeyp
     assert decision["choice"] == "search"
     assert decision["provider"] == "typesafe"
     assert "test-typesafe-secret" not in json.dumps(decision)
+    assert json.loads(request.content)["questions"]["operation"]["criteria"]["DONE"] == (
+        "Every requirement is visibly satisfied."
+    )
+
+
+def test_kalm_done_is_the_model_choice_in_the_same_request_not_a_local_page_rule(http, page):
+    http.respond = lambda request: httpx.Response(200, json=result_for(request, "DONE"))
+    decision = model.choose(page, "Search for a room", [])
+    assert len(http.requests) == 1
+    assert decision["operation"] == decision["choice"] == "DONE"
+    assert decision["target"] is None
+    assert decision["raw_answers"]["operation"]["choice"] == "DONE"
+    # Unused target heads need not exist when the operation is terminal.
+    assert set(decision["raw_answers"]) == {"operation"}
 
 
 @pytest.mark.parametrize("key", ["", "test-local-secret"])
@@ -259,3 +281,18 @@ def test_remote_text_helper_requires_key_before_request(http, monkeypatch):
     with pytest.raises(ValueError, match="TEXT_MODEL_API_KEY for a remote helper"):
         model.field_text({"goal": "Enter Lisbon"})
     assert http.requests == []
+
+
+def test_llama_cpp_text_request_disables_thinking_without_changing_server(http, monkeypatch):
+    monkeypatch.setenv("TEXT_MODEL_BASE_URL", "http://127.0.0.1:8080/v1")
+    monkeypatch.setenv("TEXT_MODEL_REASONING", "llama_cpp")
+    monkeypatch.setenv("TEXT_MODEL_TIMEOUT", "90")
+    http.respond = lambda _request: httpx.Response(200, json={
+        "choices": [{"message": {"content": '{"text":"Lisbon"}'}}],
+    })
+    assert model.field_text({"goal": "Find Lisbon"})[0] == "Lisbon"
+    request = http.requests[0]
+    body = json.loads(request.content)
+    assert body["chat_template_kwargs"] == {"enable_thinking": False}
+    assert "reasoning" not in body and "thinking" not in body
+    assert request.extensions["timeout"]["read"] == 90

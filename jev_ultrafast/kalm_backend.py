@@ -30,7 +30,10 @@ class ReadoutBackend(TransformersBackend):
         )
         rows = torch.arange(len(documents), device=attention.device)
         logits = output.logits[rows, inverse].float()
-        margin = logits[:, self.reranker.yes_token_id] - logits[:, self.reranker.no_token_id]
+        yes_no = logits[:, [self.reranker.yes_token_id, self.reranker.no_token_id]]
+        if not torch.isfinite(yes_no).all():
+            raise RuntimeError("The model produced non-finite yes/no logits. Use bfloat16 or float32.")
+        margin = yes_no[:, 0] - yes_no[:, 1]
         return margin.float().cpu().tolist()
 
 

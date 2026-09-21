@@ -79,17 +79,26 @@
       if (editable) actions.push({...base,kind:'click',value,label:'Open '+base.label});
     }
   }
-  const words=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+  const words=[], visibleWords=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
   const range=document.createRange(); let node,length=0;
   while ((node=walker.nextNode()) && length<6000) {
     const value=node.textContent.trim(), parent=node.parentElement;
     if (!value || !parent || parent.closest('script,style,noscript,template') || !visible(parent)) continue;
     range.selectNodeContents(node); const r=range.getBoundingClientRect();
     if (r.width>0 && r.height>0 && r.bottom>0 && r.top<innerHeight && r.right>0 && r.left<innerWidth) {
-      words.push(value); length+=value.length;
+      words.push(value); visibleWords.push({parent,value}); length+=value.length;
     }
   }
   const text=words.join('\n').slice(0,6000), height=document.documentElement.scrollHeight;
+  // Associate a control with its visible card/row/form text. Nearby descriptions
+  // distinguish vague link names without inventing destinations or hidden facts.
+  for (const action of actions) {
+    const element=cache.nodes.get(action.node);
+    const scope=element.closest('article,li,tr,[role="row"],fieldset,form,dialog,[role="dialog"]') || element.parentElement;
+    if (scope && scope!==document.body && scope!==document.documentElement) {
+      action.context=visibleWords.filter(word=>scope.contains(word.parent)).map(word=>word.value).join('\n');
+    }
+  }
   const page_key=cache.pageKey(), guards={};
   for (const a of actions) if (!(a.node in guards)) guards[a.node]=cache.guard(cache.nodes.get(a.node));
   // Compare meaning and identity. Geometry is always resolved and hit-tested just before input.

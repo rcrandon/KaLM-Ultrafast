@@ -133,7 +133,9 @@ def test_target_head_receives_control_state_and_full_next_step_rules(monkeypatch
         target = questions["click_target"]
         assert target["criteria"]["1"]["checked"] == "true"
         assert target["criteria"]["1"]["selected"] is False
-        assert questions["operation"]["instructions"]["rules"] in target["instructions"]["rules"]
+        assert model.NEXT_ACTION in questions["operation"]["instructions"]
+        assert model.NEXT_ACTION in target["instructions"]
+        assert model.TARGET in target["instructions"]
         return {
             "model": "test",
             "answers": {
@@ -192,6 +194,17 @@ def test_stale_decision_is_consumed_before_any_mutation(runner):
         runner.command("act", {"fingerprint": runner.state["page"]["fingerprint"]})
     runner.state["browser"].act.assert_not_called()
     assert runner.state["decision"] is None
+
+
+@pytest.mark.parametrize("terminal", ["DONE", "BLOCKED"])
+def test_terminal_choice_requires_the_observed_page_to_stay_fresh(runner, terminal):
+    runner.state["decision"] = decision(terminal)
+    runner.state["browser"].fresh.return_value = False
+    with pytest.raises(StalePage):
+        runner.command("act", {"fingerprint": runner.state["page"]["fingerprint"]})
+    assert runner.state["status"] == "ready"
+    assert runner.state["decision"] is None
+    runner.state["browser"].act.assert_not_called()
 
 
 def test_generated_text_reused_only_for_identical_retry_context(runner, monkeypatch):

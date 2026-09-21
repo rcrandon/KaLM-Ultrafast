@@ -2,7 +2,9 @@
 
 Assessment date: September 21, 2026.
 
-**Use KaLM-Jev Nano as the first replacement for hosted Jev in this project.** Its HTTP interface and configurable input limits fit Ultrafast's operation and target questions. This is an engineering recommendation for the available hardware and browser loop. No comparison on identical browser tasks has established that KaLM is faster or more accurate than Laya.
+**Keep KaLM-Jev Nano as the experimental backend, but neither option is a validated Jev replacement.** Its HTTP interface and configurable input limits fit Ultrafast's operation and target questions. Live checks exposed incorrect decisions from both candidates. There is no evidence that Laya is overwhelmingly better and would justify an MLX port for this project now.
+
+KaLM initially opened the requested article, then navigated back instead of stopping. A later adaptation of its action descriptions preserved Jev's model-selected completion and passed that task, but a second article task still failed with the wrong target and false completion. Laya's typed checkpoint, evaluated through its original PyTorch runtime on earlier captured requests, chose the wrong link with the original format and predicted premature completion with the adapted format. Laya also truncated instructions in every tested capture. These observations do not establish comparative accuracy rates. See the [local evidence and reproduction steps](validation.md).
 
 The laptop has Intel integrated graphics. The inspected desktop has an Intel i7-8700, 16 GB of RAM and an 8 GB GTX 1080. At inspection, about 5 GB of RAM and 902 MiB of GPU memory were free. An existing user model occupied the GPU and was left running. Those free-memory figures are a snapshot, not a permanent capacity estimate. CPU execution is the initial path; its practical speed still needs measurement.
 
@@ -29,7 +31,7 @@ Nano's BF16 weight file is 1,572,182,264 bytes, about 1.46 GiB. Its repository r
 
 There is also a large temporary allocation in the inspected KaLM backend. It computes vocabulary logits for every decoder position before selecting the final yes/no scores. With vocabulary size 262,144, an 8,192-token sequence needs about 4 GiB of BF16 logits or 8 GiB of FP32 logits **per batch row**, before other working memory. These are tensor-size calculations, not measured peak-memory results. Large token budgets and the default batch size of four are a poor starting point on this desktop. [Scoring implementation][kalm-backend], [vocabulary size][nano-config]
 
-Transformers supports selecting positions with `logits_to_keep` before vocabulary projection. A later optimization can use that feature, provided tests establish agreement with the original final-nonpadding-token scores. Right-padded batches require careful position selection. Until verified, budget memory for the inspected implementation. [Transformers T5Gemma2 implementation][transformers-model]
+Transformers supports selecting positions with `logits_to_keep` before vocabulary projection. This project implements that optimization, accounting for right padding and unequal row lengths. Four comparisons with the real Nano weights passed in FP32; maximum absolute margin error was 5.72e-6. This reduces the vocabulary-output allocation, while attention, weights and other working memory remain. [Transformers T5Gemma2 implementation][transformers-model], [local validation](validation.md)
 
 **What a Laya port would and would not solve**
 
@@ -37,7 +39,7 @@ MLX is no longer limited to macOS. Official documentation provides Linux CPU and
 
 Laya-MLX's inference code uses standard MLX operations, including RoPE and scaled dot-product attention. Its custom Metal experiments are outside the ordinary inference path. This makes a Linux adaptation plausible on supported hardware, but compatibility and numerical agreement still require testing. Its packaging currently declares an MLX dependency only for macOS on ARM64. [Model implementation][laya-model], [package configuration][laya-package]
 
-For an experiment on this Pascal desktop, the original Laya PyTorch implementation is a more direct starting point than porting MLX. A CUDA experiment would still need a PyTorch build with SM 6.1 support and enough free GPU memory. CPU testing is another option. This recommendation concerns implementation effort; neither path has been benchmarked here. [Original Laya package][laya-pytorch]
+For this Pascal desktop, the original Laya PyTorch implementation is a more direct starting point than porting MLX, and it was used for the CPU checks recorded above. A CUDA experiment would still need a PyTorch build with SM 6.1 support and enough free GPU memory. This recommendation concerns implementation effort; no controlled runtime comparison was performed here. [Original Laya package][laya-pytorch]
 
 The harder issue is the browser observation. Laya's English checkpoint uses 512 tokens; multilingual and typed-decisions checkpoints use 1,024. Instructions, options and state share that budget. The formatter shortens instructions and option descriptions under a separate head budget, then truncates state to the remaining space. Raising runtime limits does not demonstrate accuracy on longer inputs. [Prompt construction][laya-format], [checkpoint descriptions][laya-readme]
 

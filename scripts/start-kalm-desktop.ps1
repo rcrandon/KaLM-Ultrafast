@@ -56,8 +56,8 @@ $process.Id | Set-Content -LiteralPath (Join-Path $RuntimeRoot 'kalm.pid')
 Write-Output "Starting KaLM Nano on desktop loopback port $Port; process $($process.Id)."
 Write-Output "Readout verification runs before the server becomes ready. Logs: $stdout and $stderr"
 
-# Windows OpenSSH terminates child processes when its session closes.
-# Waiting here lets the local hidden SSH process hold the model service open.
+# Keep logs and service lifetime attached to this session where supported.
+# Windows child processes can survive SSH exit; use stop-desktop.ps1 to unload.
 $process.WaitForExit()
 if ($process.ExitCode -ne 0) {
     if (Test-Path -LiteralPath $stderr) { Get-Content -LiteralPath $stderr -Tail 25 | Write-Output }

@@ -8,11 +8,12 @@ param(
     [ValidateRange(1024, 65535)][int]$RemotePort = 8767,
     [ValidateRange(1, 64)][int]$Threads = 4,
     [ValidateRange(10, 600)][int]$StartupTimeoutSeconds = 120,
-    [string]$LogDirectory = (Join-Path $PSScriptRoot '..\artifacts\desktop-staging')
+    [string]$LogDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+if (-not $LogDirectory) { $LogDirectory = Join-Path $PSScriptRoot '..\artifacts\desktop-staging' }
 
 function ConvertTo-WindowsArgument([string]$Value) {
     $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
@@ -30,25 +31,28 @@ if (-not (Test-Path -LiteralPath $remoteLauncher -PathType Leaf)) {
     throw "Desktop launcher is missing: $remoteLauncher"
 }
 # Send the checked-in launcher itself, so restart does not depend on ignored artifacts.
-# UTF-16 Base64 keeps remote shell quoting independent of runtime paths and spaces.
+# Send source through stdin rather than exceeding Windows' remote command-line limit.
 $remoteScript = "& {`n" + (Get-Content -LiteralPath $remoteLauncher -Raw) + "`n} -Port $RemotePort -Threads $Threads"
 if ($RemoteRuntime) {
     $remoteScript += " -RuntimeRoot '" + $RemoteRuntime.Replace("'", "''") + "'"
 }
-$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($remoteScript))
+$remoteScript = "try {`n" + $remoteScript + "`n} catch { Write-Output `$_.Exception.Message; exit 1 }"
 New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
 $LogDirectory = (Resolve-Path -LiteralPath $LogDirectory).Path
 $stdout = Join-Path $LogDirectory 'ssh-kalm.stdout.log'
 $stderr = Join-Path $LogDirectory 'ssh-kalm.stderr.log'
+$stdin = Join-Path $LogDirectory 'start-remote.ps1'
+# The blank line terminates the compound command for PowerShell's stdin parser.
+[IO.File]::WriteAllText($stdin, $remoteScript + "`n`n", [Text.UTF8Encoding]::new($false))
 $sshArgs = @(
     '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
     '-o', 'ConnectTimeout=10', '-o', 'ExitOnForwardFailure=yes',
     '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3',
     '-L', "127.0.0.1:${LocalPort}:127.0.0.1:${RemotePort}",
-    $SshTarget, 'powershell', '-NoProfile', '-EncodedCommand', $encoded
+    $SshTarget, 'powershell', '-NoProfile', '-NonInteractive', '-Command', '-'
 )
 $argumentLine = ($sshArgs | ForEach-Object { ConvertTo-WindowsArgument $_ }) -join ' '
-$process = Start-Process -FilePath $sshExe -ArgumentList $argumentLine -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+$process = Start-Process -FilePath $sshExe -ArgumentList $argumentLine -WindowStyle Hidden -PassThru -RedirectStandardInput $stdin -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 $process.Id | Set-Content -LiteralPath (Join-Path $LogDirectory 'ssh-kalm.pid')
 $endpoint = "http://127.0.0.1:$LocalPort"
 Write-Output "Starting the desktop model and private tunnel; SSH process $($process.Id)."
@@ -64,7 +68,9 @@ try {
         }
         try {
             $health = Invoke-RestMethod -Uri "$endpoint/health" -TimeoutSec 3
-            if ($health.status -eq 'ok' -and $health.model -eq 'kalm-jev-nano') {
+            $startupLog = Get-Content -LiteralPath $stdout -Raw -ErrorAction SilentlyContinue
+            $startedRemote = $startupLog -match 'Starting KaLM Nano on desktop loopback port'
+            if ($startedRemote -and $health.status -eq 'ok' -and $health.model -eq 'kalm-jev-nano') {
                 Write-Output "KaLM Nano is ready at $endpoint. Keep SSH process $($process.Id) running."
                 return
             }

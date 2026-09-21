@@ -2,6 +2,8 @@
 
 Ultrafast's browser agent, refactored to use **KaLM-Jev Nano** for local decisions. Chrome stays on the laptop; the decision service can run locally or on the desktop through SSH. An independent OpenAI-compatible model supplies values only for `TYPE_TEXT`.
 
+**Experimental: the default reading task passes, but another article task fails.** KaLM now opens the default article and chooses `DONE` itself in two decisions. The separate final-page check confirms that result. A second task opened the wrong article and declared completion, so this is not a reliable general browser policy. Laya's tested checkpoint also makes incorrect decisions and truncates instructions. Read the [actual validation results](docs/validation.md) before using automatic execution.
+
 The starting point is [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast) at `1231850a0bf1a0c0341fe408ef1668dbbfdfac46`. Its indexed elements, operation-specific target questions, page freshness checks and guarded execution remain in place. Hosted TypeSafe is available as an explicit configuration choice. A failed local request never switches to a paid endpoint.
 
 **Why KaLM:** its HTTP interface accepts Ultrafast's structured questions, and its configurable context budget accommodates larger browser observations. Laya remains a plausible candidate for short decisions, including through Linux MLX or its original PyTorch runtime. Its short context and option-description budgets are the larger obstacles for this browser loop. See the [comparison and pinned sources](docs/backends.md). This recommendation does not claim that KaLM wins a browser accuracy or speed benchmark.
@@ -52,13 +54,21 @@ The project server projects vocabulary scores only at the final nonpadding posit
 
 For CUDA on a suitable GPU, install a compatible PyTorch build and use `--device cuda --dtype float16` or a supported `bfloat16` configuration. This desktop's GTX 1080 is occupied by an existing model. The staged KaLM service uses CPU and leaves that process running.
 
-Open a KaLM tunnel on the laptop if the remote service is already running and no forward is active:
+Start the already-staged desktop runtime and tunnel when both are stopped:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-desktop.ps1
+```
+
+Open only a tunnel if the remote service is already running and no forward is active:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-desktop-tunnel.ps1
 ```
 
 The script defaults to the existing desktop SSH destination. It forwards laptop port 8767 to the desktop loopback port. Ctrl+C closes this foreground tunnel. It does not start the remote model or alter the existing port 8080 text-model tunnel. See [validation and deployment notes](docs/validation.md) for the staged runtime's paths and measured results.
+
+Closing an SSH forward does not reliably unload the remote Windows process. To release the project's model memory, run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-desktop.ps1`. The stop script checks the listener's runtime path and port before stopping it. Use `-InspectOnly` to check ownership without stopping anything.
 
 ## Configuration
 
@@ -71,9 +81,10 @@ The script defaults to the existing desktop SSH destination. It forwards laptop 
 | `DECISION_TIMEOUT` | `120` for KaLM | Request timeout in seconds; TypeSafe defaults to 25 |
 | `TEXT_MODEL_BASE_URL` | Set in `.env` | Independent OpenAI-compatible text endpoint |
 | `TEXT_MODEL`, `TEXT_MODEL_API_KEY` | Set in `.env` | Model name and credential for text generation |
-| `TEXT_MODEL_REASONING` | Provider-dependent | `none` disables reasoning; `omit` omits vendor-specific reasoning fields |
+| `TEXT_MODEL_REASONING` | Provider-dependent | `none` sends a reasoning-disable flag; `omit` omits reasoning fields; `llama_cpp` disables thinking through template options |
+| `TEXT_MODEL_TIMEOUT` | 120 seconds without a key, otherwise 25 | Independent text request timeout |
 
-An unauthenticated text helper is allowed only at a loopback host. The current desktop helper uses `Qwen3.8-27B`, `http://127.0.0.1:8080/v1`, an empty key and `TEXT_MODEL_REASONING=omit`. Text must still parse as exactly `{"text": "value"}` before execution. Configure a different helper if the chosen model cannot follow that contract.
+An unauthenticated text helper is allowed only at a loopback host. The current desktop helper uses `Qwen3.8-27B`, `http://127.0.0.1:8080/v1`, an empty key and `TEXT_MODEL_REASONING=llama_cpp`. Its live checks timed out on this loaded desktop, so field generation is not yet validated. Text must parse as exactly `{"text": "value"}` before execution. Configure a responsive helper for typing tasks.
 
 To opt into the original hosted decision backend, set `DECISION_PROVIDER=typesafe`, `DECISION_BASE_URL=https://api.typesafe.ai/v1`, `DECISION_MODEL=jev-latest`, and `DECISION_API_KEY` to your TypeSafe key. When generic settings are absent, TypeSafe mode also recognizes the original `TYPESAFE_MODEL` and `TYPESAFE_API_KEY` variables. Live hosted calls may incur charges.
 
@@ -100,5 +111,9 @@ uv run --env-file .env python scripts/check_local_agent.py
 ```
 
 Unit tests run without network calls. The guard check exercises real local controls without model calls. The local-agent check calls the configured loopback KaLM service, permits at most four decisions by default, and checks the rendered article independently. Its trace is saved under ignored `artifacts/` whether it passes or fails.
+
+Completion follows the [original Jev loop](https://github.com/browser-use/jev-ultrafast/blob/1231850a0bf1a0c0341fe408ef1668dbbfdfac46/jev_ultrafast/agent.py): the model chooses `DONE` in the same operation question, and the agent rejects a stale page before accepting it. KaLM's adapter describes `CLICK` using observed element names and `DONE` as remaining on the currently titled page, with the original requirement that every goal condition be visibly satisfied. Full observation and policy rules remain in the request. No local article predicate decides when the agent stops. The test's independent DOM check runs afterward and requires both model completion and the correct outcome.
+
+Use `scripts/check_local_agent.py --article latency --output artifacts/local-agent-latency.json` to reproduce the second task. It currently fails; a successful default example must not hide that result.
 
 Shadow roots, frames, canvas, uploads, popup tabs, nested scrolling and arbitrary keyboard widgets remain outside the upstream MVP. The upstream video and timing results describe the hosted Jev baseline, not this KaLM configuration. They are preserved in the [original README](docs/upstream-readme.md) and [upstream performance notes](docs/performance.md).

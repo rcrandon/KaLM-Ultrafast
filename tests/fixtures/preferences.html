@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Account preferences</title>
+<style>
+body{font:18px system-ui;max-width:720px;margin:55px auto;color:#24362c;background:#f6f8f4}
+fieldset{padding:24px;margin:24px 0;border:1px solid #bac8bf;border-radius:12px}
+select{font:inherit;padding:10px;margin-left:20px}input{width:20px;height:20px;margin-right:14px}
+</style>
+<h1>Account preferences</h1>
+<p>Changes apply immediately. No save or submit step is required.</p>
+<fieldset><legend>Email</legend><label><input type="checkbox" id="digest">Weekly email digest</label>
+<p>Receive a weekly summary of updates.</p></fieldset>
+<fieldset><legend>Appearance</legend><label>Color theme<select id="theme" aria-label="Color theme">
+<option>Light</option><option>Dark</option><option>System</option></select></label>
+<p>Choose the interface color scheme.</p></fieldset>
+<p id="state" aria-live="polite"></p>
+<script>
+function report(){document.getElementById('state').textContent='Current preferences: weekly email digest '+
+  (document.getElementById('digest').checked?'enabled':'disabled')+'; color theme '+document.getElementById('theme').value+'.';}
+document.querySelectorAll('input,select').forEach(e=>e.addEventListener('change',report));report();
+</script>
+</html>
