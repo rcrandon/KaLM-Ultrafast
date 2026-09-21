@@ -1,6 +1,7 @@
 """Offline contracts for a dynamic operation/target policy. No paid APIs."""
 
 import json
+import os
 import time
 from copy import deepcopy
 from unittest.mock import Mock
@@ -10,6 +11,13 @@ import pytest
 from jev_ultrafast import agent as loop
 from jev_ultrafast import model
 from jev_ultrafast.browser import StalePage, browser_operation, fingerprint
+
+
+@pytest.fixture(autouse=True)
+def isolated_model_environment(monkeypatch):
+    for name in list(os.environ):
+        if name.startswith(("DECISION_", "TYPESAFE_", "TEXT_MODEL")):
+            monkeypatch.delenv(name)
 
 
 def page():
@@ -60,7 +68,7 @@ def test_invalid_choice_is_rejected(mutation):
         a["choice"] = "b"
     else:
         a["confidence"] = 5
-    with pytest.raises(ValueError, match="Invalid TypeSafe"):
+    with pytest.raises(ValueError, match="Invalid decision"):
         model.validate_choice(a, {"a", "b"})
 
 
@@ -77,7 +85,7 @@ def test_one_index_per_node_with_operation_specific_targets():
 def test_all_heads_are_one_request_and_only_matching_head_executes(monkeypatch):
     calls = []
 
-    def post(_url, _key, body):
+    def post(_url, _key, body, **_kwargs):
         calls.append(body)
         return {
             "model": "test",
@@ -97,7 +105,7 @@ def test_all_heads_are_one_request_and_only_matching_head_executes(monkeypatch):
 
 
 def test_click_cannot_consume_a_text_target(monkeypatch):
-    def post(_url, _key, body):
+    def post(_url, _key, body, **_kwargs):
         return {
             "model": "test",
             "answers": {
@@ -109,7 +117,7 @@ def test_click_cannot_consume_a_text_target(monkeypatch):
 
     monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     monkeypatch.setattr(model, "post_json", post)
-    with pytest.raises(ValueError, match="Invalid TypeSafe"):
+    with pytest.raises(ValueError, match="Invalid decision"):
         model.choose(page(), "Find a book", [])
 
 
@@ -120,7 +128,7 @@ def test_target_head_receives_control_state_and_full_next_step_rules(monkeypatch
         "role": "checkbox", "checked": "true", "selected": False,
     })
 
-    def post(_url, _key, body):
+    def post(_url, _key, body, **_kwargs):
         questions = body["questions"]
         target = questions["click_target"]
         assert target["criteria"]["1"]["checked"] == "true"

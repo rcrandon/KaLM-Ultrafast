@@ -11,7 +11,7 @@
   <body>
     <header>
       <a href="/" aria-label="Homepage" class="brand"
-        >browser<span>use</span> <i>×</i> TypeSafe</a
+        >browser<span>use</span> <i>×</i> <span id="decision-provider">Decision model</span></a
       >
       <div class="local"><span class="dot"></span> Jev Ultrafast</div>
     </header>
@@ -21,24 +21,24 @@
           <p class="eyebrow">A BROWSER THAT CHOOSES</p>
           <h1>Every page is a set of possibilities.</h1>
           <p>
-            Jev picks the next action. A small language model handles the words.
-            <a href="/demo.mp4" target="_blank" rel="noopener">Watch the real Google Flights run ↗</a>
+            The decision model picks the next action. A small language model handles the words.
+            <a href="/demo.mp4" target="_blank" rel="noopener">Watch the original TypeSafe Google Flights run ↗</a>
           </p>
         </div>
-        <div class="model-tag">jev-latest <span>+ text helper</span></div>
+        <div class="model-tag"><b id="decision-model">Loading model</b> <span>+ text helper</span></div>
       </section>
       <form id="task-form">
         <div class="task-label">
           <label for="goal">Give it a task</label
           ><select id="scenario" name="scenario" aria-label="Demo scenario">
-            <option value="flights">Google Flights · real web</option>
-            <option value="travel">Travel planner · fixture</option>
             <option value="research">Reading room · fixture</option>
+            <option value="travel">Travel planner · fixture</option>
+            <option value="flights">Google Flights · real web</option>
           </select>
         </div>
         <div class="task-row">
           <textarea id="goal" name="goal" rows="5">
-Find one-way flights from Zurich to London on September 20, 2026, for one adult in economy. Stop when matching flight options are visible. Do not select or book a flight.</textarea
+Open the article about using finite choices to control browser agents.</textarea
           ><button type="submit" id="start" class="primary">
             Start demo <span>↗</span>
           </button>
@@ -135,7 +135,7 @@ Find one-way flights from Zurich to London on September 20, 2026, for one adult 
 Start a demo to inspect its structured state.</pre>
       </details>
       <footer>
-        <span>Browser Use × TypeSafe · Experimental baseline</span
+        <span>Adapted from Browser Use × TypeSafe · Jev Ultrafast</span
         ><span id="helper">Text helper loading</span>
       </footer>
     </main>

@@ -1,0 +1,5 @@
+# Install separately from the lightweight browser client.
+# Install the appropriate CPU/CUDA PyTorch wheel first. See README.md.
+kalm-jev @ git+https://github.com/KaLM-Embedding/KaLM-Jev.git@ae6ed263b91fba47c5975eea782885a9054f1f5c
+transformers==5.3.0
+torch==2.8.0

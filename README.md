@@ -1,142 +1,104 @@
-<img src="docs/banner.svg" alt="Jev Ultrafast · Browser Use × TypeSafe" width="100%" />
+# Ultrafast with KaLM-Jev
 
-# Jev Ultrafast ⚡
+Ultrafast's browser agent, refactored to use **KaLM-Jev Nano** for local decisions. Chrome stays on the laptop; the decision service can run locally or on the desktop through SSH. An independent OpenAI-compatible model supplies values only for `TYPE_TEXT`.
 
-> [!IMPORTANT]
-> **The Browser Use Cloud waitlist is open.** Get early access to ultrafast browser agents in the cloud.
-> **[Join the waitlist →](https://browser-use.com/ultrafast?utm_source=github&utm_medium=readme&utm_campaign=jev-ultrafast)**
+The starting point is [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast) at `1231850a0bf1a0c0341fe408ef1668dbbfdfac46`. Its indexed elements, operation-specific target questions, page freshness checks and guarded execution remain in place. Hosted TypeSafe is available as an explicit configuration choice. A failed local request never switches to a paid endpoint.
 
-**A browser agent with a dynamic, indexed action space.**
+**Why KaLM:** its HTTP interface accepts Ultrafast's structured questions, and its configurable context budget accommodates larger browser observations. Laya remains a plausible candidate for short decisions, including through Linux MLX or its original PyTorch runtime. Its short context and option-description budgets are the larger obstacles for this browser loop. See the [comparison and pinned sources](docs/backends.md). This recommendation does not claim that KaLM wins a browser accuracy or speed benchmark.
 
-Give it one goal. [TypeSafe's Jev](https://docs.typesafe.ai/introduction) picks an operation and an element. A small LLM writes text only when the operation is `TYPE_TEXT`.
+## Run the inspector
 
-**Zürich → London on Google Flights in 7.1 seconds.** One natural-language goal, actual text generation, and loading waits included.
+From this directory in PowerShell:
 
-<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="A real Google Flights search at 1× speed, with generated city names and dynamic operation/target decisions" width="100%" /></a>
-
-[Watch the MP4](docs/demo.mp4) · [Measurements](docs/performance.md) · [Read the loop](jev_ultrafast/agent.py)
-
-## The action space
-
-Every observation produces a new element table:
-
-```text
-[1] button    Change ticket type · Round trip
-[2] combobox  Where from?        · San Francisco
-[3] combobox  Where to?          · empty
-[4] textbox   Departure          · empty
-...
+```powershell
+uv sync --locked
+# On a fresh checkout only. Keep an existing .env.
+Copy-Item .env.example .env
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-browser.ps1
+uv run --env-file .env jev-doctor
+uv run --env-file .env jev
 ```
 
-The operations are `CLICK`, `TYPE_TEXT`, `SELECT`, `SCROLL_UP`, `SCROLL_DOWN`, `WAIT`, `DONE`, and `BLOCKED`. Only supported operations and targets are offered.
+Open [the inspector](http://127.0.0.1:8766). The default Reading room task uses a local fixture. **Choose next** lets you inspect a decision; **Run automatically** executes the loop. A `DONE` prediction still needs independent outcome verification.
 
-```text
-                      one TypeSafe request
-                     ┌───────────────────────────┐
-page → element table → operation                 │
-                     │ click_target              │
-                     │ type_text_target          │
-                     │ select_target, if present │
-                     └─────────────┬─────────────┘
-                         use the matching target
-                                   │
-                    CLICK [7] ─────┤──→ browser
-                TYPE_TEXT [3] ─────┘
-                          ↓
-                   small LLM → text → browser
+The working `.env` on this machine is already configured for KaLM at `127.0.0.1:8767`, the existing desktop Qwen helper at `127.0.0.1:8080`, and the isolated Chrome profile at port 9222. Preserve it. Both model services are reached through loopback SSH forwards. The doctor checks service health without running inference.
+
+For the isolated browser, include these settings in `.env` before launching with `--env-file`:
+
+```dotenv
+BU_CDP_URL=http://127.0.0.1:9222
+BU_NAME=jev-browserUse
 ```
 
-Target questions are speculative. If the operation is `CLICK`, only `click_target` can execute. Two decisions, **one network round trip**. Each target head contains only compatible elements. Native dropdown choices carry an observed element/option index.
+`start-browser.ps1` launches headless Chrome with a project-owned profile under ignored `artifacts/chrome-profile`. The inspector shows screenshots. To use your normal Chrome profile instead, remove those two overrides, enable remote debugging in Chrome, and follow Browser Harness's connection prompts. Credentials, model files and raw traces stay out of Git.
 
-There are no site-specific action scripts or prepared field strings in the policy. The Flights example supplies a goal and independently verifies the outcome. The screenshot renderer adds labels afterward; it does not drive the browser.
+## Decision service
 
-## Try it
+The browser client has no PyTorch dependency. Install the model runtime separately, on the desktop or locally. For a Windows CPU environment:
 
-```bash
-git clone https://github.com/browser-use/jev-ultrafast.git
-cd jev-ultrafast
-uv sync
-cp .env.example .env
-# Add TYPESAFE_API_KEY and TEXT_MODEL_API_KEY.
-uv run jev
+```powershell
+uv venv --python 3.12 .venv-kalm
+uv pip install --python .venv-kalm/Scripts/python.exe torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+uv pip install --python .venv-kalm/Scripts/python.exe -r requirements-kalm.txt
+.venv-kalm/Scripts/hf.exe download KaLM-Embedding/KaLM-Reranker-V1-Nano-R2 --revision 3902d6453ea915007dcbf88fbc8a1d7dd5f8df10 --local-dir models/KaLM-Nano
+.venv-kalm/Scripts/python.exe scripts/serve_kalm.py --model-path models/KaLM-Nano --verify-readout --verification-output artifacts/readout-parity.json
 ```
 
-Open **http://127.0.0.1:8766** and click **Start demo → Run automatically**. The inspector shows numbered elements, operation probabilities, target probabilities, and executed actions. **Choose next** pauses before execution.
+The pinned checkpoint includes Python model code as well as weights. The separate service installs KaLM-Jev at a fixed source revision. The [comparison](docs/backends.md) records the distinct code and checkpoint licensing declarations; KaLM-Jev's repository has no explicit code license at the inspected revision.
 
-Chrome connects through [Browser Harness](https://github.com/browser-use/browser-harness), installed by `uv sync`. Run `uv run browser-harness --doctor` if it needs connecting. Allow remote debugging in Chrome when prompted.
+The service binds to `127.0.0.1:8767`, uses one CPU batch row, four threads, a 64 MiB document cache, 4,096 state tokens, 1,024 candidate tokens and 6,144 decoder tokens. Inputs that exceed these limits fail explicitly. No browser state or target list is silently discarded. Raise token limits only after checking memory and latency.
 
-`TEXT_MODEL_API_KEY` is an OpenRouter key in the example configuration. The current demo uses `inception/mercury-2.5` with reasoning disabled. Gemini, GLM, and DeepSeek can also use the OpenAI-compatible text helper; configure the appropriate model, endpoint, and reasoning setting.
+The project server projects vocabulary scores only at the final nonpadding positions. `--verify-readout` compares these margins with upstream full-sequence scoring using the loaded weights before accepting requests, including unequal-length batches. `--full-logits` selects upstream scoring for diagnosis. This reduces the temporary vocabulary output allocation; it does not eliminate the cost of reranking every candidate or prove task accuracy.
 
-## Use the library
+For CUDA on a suitable GPU, install a compatible PyTorch build and use `--device cuda --dtype float16` or a supported `bfloat16` configuration. This desktop's GTX 1080 is occupied by an existing model. The staged KaLM service uses CPU and leaves that process running.
+
+Open a KaLM tunnel on the laptop if the remote service is already running and no forward is active:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-desktop-tunnel.ps1
+```
+
+The script defaults to the existing desktop SSH destination. It forwards laptop port 8767 to the desktop loopback port. Ctrl+C closes this foreground tunnel. It does not start the remote model or alter the existing port 8080 text-model tunnel. See [validation and deployment notes](docs/validation.md) for the staged runtime's paths and measured results.
+
+## Configuration
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `DECISION_PROVIDER` | `kalm` | `kalm` or `typesafe`; no automatic fallback |
+| `DECISION_BASE_URL` | `http://127.0.0.1:8767/v1` | Base URL; the client adds `/systemone` |
+| `DECISION_MODEL` | `kalm-jev-nano` | Must match the service's loaded model |
+| `DECISION_API_KEY` | Empty for KaLM | Optional authorization header; omitted when empty |
+| `DECISION_TIMEOUT` | `120` for KaLM | Request timeout in seconds; TypeSafe defaults to 25 |
+| `TEXT_MODEL_BASE_URL` | Set in `.env` | Independent OpenAI-compatible text endpoint |
+| `TEXT_MODEL`, `TEXT_MODEL_API_KEY` | Set in `.env` | Model name and credential for text generation |
+| `TEXT_MODEL_REASONING` | Provider-dependent | `none` disables reasoning; `omit` omits vendor-specific reasoning fields |
+
+An unauthenticated text helper is allowed only at a loopback host. The current desktop helper uses `Qwen3.8-27B`, `http://127.0.0.1:8080/v1`, an empty key and `TEXT_MODEL_REASONING=omit`. Text must still parse as exactly `{"text": "value"}` before execution. Configure a different helper if the chosen model cannot follow that contract.
+
+To opt into the original hosted decision backend, set `DECISION_PROVIDER=typesafe`, `DECISION_BASE_URL=https://api.typesafe.ai/v1`, `DECISION_MODEL=jev-latest`, and `DECISION_API_KEY` to your TypeSafe key. When generic settings are absent, TypeSafe mode also recognizes the original `TYPESAFE_MODEL` and `TYPESAFE_API_KEY` variables. Live hosted calls may incur charges.
+
+## Library and checks
 
 ```python
 from jev_ultrafast import Agent
 
-with Agent(
-    "https://www.google.com/travel/flights?hl=en",
-    "Find one-way flights from Zurich to London on September 20, 2026, "
-    "for one adult in economy. Stop when matching flight options are visible.",
-) as agent:
+with Agent("https://en.wikipedia.org/wiki/Main_Page", "Open the article about Ada Lovelace.") as agent:
     for state in agent.run():
         print(state["elapsed_ms"], state["status"])
 ```
 
-Run with `uv run --env-file .env python your_script.py`. The same policy can run a different task:
+Run scripts with `uv run --env-file .env python path/to/script.py` so browser settings load before Browser Harness is imported.
 
-```bash
-uv run --env-file .env python examples/run.py \
-  --url https://en.wikipedia.org/wiki/Main_Page \
-  --goal 'Find and open the Wikipedia article about Gödel’s incompleteness theorems.'
-```
-
-`uv run --env-file .env python examples/flights.py --keep-open` performs the flight search, checks the actual route/date/results, and saves its trace. It does not select or book a flight.
-
-## Why it moves
-
-- **One request per decision cycle.** Operation and target heads share the same observed state.
-- **No screenshots in the default agent loop.** Jev consumes structured state. The inspector opts into screenshots; the video uses a separate continuous screencast.
-- **One browser call per snapshot.** Read visible controls, their names, values, and text atomically. Keep references to the actual DOM nodes.
-- **Validate the selected target.** Clicks check the document, form values, target, and nearby context. Animation alone does not force another prediction. Resolve current geometry and reject covered controls before input.
-- **Wait for useful state.** After typing into a combobox, wait for visible suggestions, capped at 200 ms. Other interactions get at most two animation frames or 50 ms. These reads happen after execution is logged.
-- **Keep hidden tabs rendering.** Focus emulation prevents background animation throttling without switching Chrome's visible tab.
-- **Send visible text.** Offscreen article bodies and footers do not fill the model context.
-- **Reuse an interrupted text request.** A generated value survives a stale-page retry only if the entire text-helper input is unchanged.
-
-Every executed target is resolved from an observed node. The executor rechecks page freshness and click occlusion. Model output never becomes selectors, coordinates, shell commands, or executable JavaScript. Text-helper output must parse as a small JSON object before typing.
-
-## Small enough to read
-
-| File | Job |
-| --- | --- |
-| [agent.py](jev_ultrafast/agent.py) | The complete loop and text-helper handoff |
-| [snapshot.js](jev_ultrafast/snapshot.js) | Atomic DOM snapshot, indexed controls, freshness guards |
-| [browser.py](jev_ultrafast/browser.py) | Browser connection, current geometry, execution |
-| [model.py](jev_ultrafast/model.py) | Dynamic operation/target heads and text generation |
-| [questions.py](jev_ultrafast/questions.py) | Model instructions |
-| [demo.py](jev_ultrafast/demo.py) | Local inspector |
-
-## Evidence and limits
-
-The current video is a **7,073 ms** Google Flights run. Timing starts after initial page observation and includes model calls, generated text, browser work, stale decisions, and loading waits. A fresh independent check verifies the one-way setting, Zürich, London, September 20, 2026, and visible flight options. The video plays at 1×, with no opening hold and a 0.5-second final hold.
-
-In six alternating runs with identical models and settings, both versions passed **3/3**. Median task time went from **9.450 s → 7.092 s**, a **25% reduction**; median browser protocol calls went from **1,092 → 101**. This is three repeats of one task on one browser profile, not a general reliability benchmark.
-
-The same policy opened the requested Wikipedia article in **2.798 s** and passed a local hotel search/filter task in **1.896 s**. Runs, failures, source hashes, and measurement boundaries are in [performance.md](docs/performance.md).
-
-A `DONE` choice still requires independent outcome verification. The DOM reader handles common HTML and ARIA controls, not the full accessible-name specification. Shadow roots, frames, canvas, uploads, pop-up tabs, nested scrolling, and arbitrary keyboard widgets remain outside this MVP. Owned tabs share the existing Chrome profile.
-
-## Development
-
-```bash
+```powershell
 uv run ruff check .
 uv run pytest
 node --check jev_ultrafast/static/app.js
 node --check jev_ultrafast/snapshot.js
 uv build
+uv run --env-file .env python scripts/check_guards.py
+uv run --env-file .env python scripts/check_local_agent.py
 ```
 
-Tests are offline. `uv run python scripts/check_guards.py` checks real controls in a local browser without model calls. Live examples and recording scripts make paid API calls. `scripts/record_flights.py <new-folder>` captures original browser timestamps; `scripts/render_demo.py <recording-folder>` renders that verified run at 1× and crops out the Google account strip. Credentials and raw traces stay ignored.
+Unit tests run without network calls. The guard check exercises real local controls without model calls. The local-agent check calls the configured loopback KaLM service, permits at most four decisions by default, and checks the rendered article independently. Its trace is saved under ignored `artifacts/` whether it passes or fails.
 
----
-
-[Browser Use](https://github.com/browser-use/browser-use) · [Browser Harness](https://github.com/browser-use/browser-harness) · [TypeSafe speculative fan-out](https://docs.typesafe.ai/patterns/fan-out)
+Shadow roots, frames, canvas, uploads, popup tabs, nested scrolling and arbitrary keyboard widgets remain outside the upstream MVP. The upstream video and timing results describe the hosted Jev baseline, not this KaLM configuration. They are preserved in the [original README](docs/upstream-readme.md) and [upstream performance notes](docs/performance.md).

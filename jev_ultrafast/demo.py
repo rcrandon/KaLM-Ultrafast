@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+from . import model
 from .agent import Agent
 from .questions import MAX_STEPS
 
@@ -23,7 +24,7 @@ AGENT = None
 def load_environment():
     path = Path.cwd() / ".env"
     if path.exists():
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
             if "=" in line and not line.startswith("#"):
                 key, value = line.split("=", 1)
                 os.environ.setdefault(key, value)
@@ -31,7 +32,14 @@ def load_environment():
 
 def response_state():
     state = AGENT.snapshot() if AGENT else {"page": None, "status": "idle", "history": [], "decision": None}
-    return {**state, "text_model": os.environ.get("TEXT_MODEL", "deepseek-chat"), "max_steps": MAX_STEPS}
+    settings = model.decision_settings()
+    return {
+        **state,
+        "decision_provider": settings.provider,
+        "decision_model": settings.model,
+        "text_model": os.environ.get("TEXT_MODEL", "deepseek-chat"),
+        "max_steps": MAX_STEPS,
+    }
 
 
 def close_browser():
@@ -44,7 +52,7 @@ def close_browser():
 def command(name, body):
     global AGENT
     if name == "reset":
-        scenario = body.get("scenario", "flights")
+        scenario = body.get("scenario", "research")
         if scenario not in {"travel", "research", "flights"}:
             raise ValueError("Unknown demo scenario")
         goal = body.get("goal", "").strip()
@@ -69,7 +77,7 @@ def command(name, body):
 
 class Handler(BaseHTTPRequestHandler):
     def send(self, status, content, mime="application/json"):
-        content = content if isinstance(content, bytes) else content.encode()
+        content = content if isinstance(content, bytes) else content.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(content)))
@@ -98,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
         if path not in files:
             return self.send(404, "Not found", "text/plain")
         name, mime = files[path]
-        content = (ROOT / "static" / name).read_text().replace("__TOKEN__", TOKEN)
+        content = (ROOT / "static" / name).read_text(encoding="utf-8").replace("__TOKEN__", TOKEN)
         self.send(200, content, mime + "; charset=utf-8")
 
     def do_POST(self):

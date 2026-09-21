@@ -1,9 +1,11 @@
-"""TypeSafe makes choices; an optional small OpenAI-compatible model writes field values."""
+"""KaLM-Jev (or TypeSafe) chooses; an OpenAI-compatible helper writes field values."""
 
 import json
 import math
 import os
 import time
+from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -12,18 +14,68 @@ from .questions import NEXT_ACTION, TARGET, TEXT_VALUE
 CLIENT = httpx.Client(http2=True, timeout=25)
 
 
-def post_json(url, key, body):
+@dataclass(frozen=True)
+class DecisionSettings:
+    provider: str
+    model: str
+    base_url: str
+    api_key: str = field(repr=False)
+    timeout: float = 120
+
+
+def decision_settings():
+    provider = os.environ.get("DECISION_PROVIDER", "kalm").strip().lower()
+    if provider not in {"kalm", "typesafe"}:
+        raise ValueError("DECISION_PROVIDER must be kalm or typesafe.")
+    local = provider == "kalm"
+    base = os.environ.get(
+        "DECISION_BASE_URL", "http://127.0.0.1:8767/v1" if local else "https://api.typesafe.ai/v1"
+    ).rstrip("/")
+    parsed = urlsplit(base)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("DECISION_BASE_URL must be an HTTP(S) URL without embedded credentials.")
+    if parsed.query or parsed.fragment:
+        raise ValueError("DECISION_BASE_URL must not contain a query or fragment.")
+    default_model = "kalm-jev-nano" if local else os.environ.get("TYPESAFE_MODEL", "jev-latest")
+    model = os.environ.get("DECISION_MODEL", default_model)
+    key = os.environ.get("DECISION_API_KEY", "" if local else os.environ.get("TYPESAFE_API_KEY", ""))
+    try:
+        timeout = float(os.environ.get("DECISION_TIMEOUT", "120" if local else "25"))
+    except ValueError:
+        raise ValueError("DECISION_TIMEOUT must be a positive number of seconds.") from None
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("DECISION_TIMEOUT must be a positive number of seconds.")
+    if not model.strip():
+        raise ValueError("DECISION_MODEL must name the model loaded by the service.")
+    return DecisionSettings(provider, model, base, key, timeout)
+
+
+def post_json(url, key, body, *, timeout=25):
     for attempt in range(3):
         try:
-            response = CLIENT.post(url, json=body, headers={"Authorization": f"Bearer {key}"})
+            headers = {"Authorization": f"Bearer {key}"} if key else {}
+            response = CLIENT.post(url, json=body, headers=headers, timeout=timeout)
         except httpx.HTTPError:
-            raise RuntimeError("Model connection failed; no action executed.") from None
+            raise RuntimeError(
+                "Model connection failed; check the service, SSH tunnel, and timeout. No action executed."
+            ) from None
         if response.status_code in {429, 529, 503} and attempt < 2:
             time.sleep(0.5 * 2**attempt)
             continue
         if response.is_error:
+            if response.status_code == 422:
+                raise RuntimeError(
+                    "Model rejected the request (HTTP 422). Check candidate and context limits; "
+                    "KaLM needs the larger token budgets in the setup guide. No action executed."
+                )
             raise RuntimeError(f"Model provider returned HTTP {response.status_code}; no action executed.")
-        return response.json()
+        try:
+            result = response.json()
+        except ValueError:
+            raise ValueError("Model returned invalid JSON; no action executed.") from None
+        if not isinstance(result, dict):
+            raise ValueError("Model returned an invalid response; no action executed.")
+        return result
     raise RuntimeError("Model unavailable")
 
 
@@ -38,10 +90,10 @@ def validate_choice(answer, ids):
             and abs(sum(probabilities.values()) - 1) < 0.02
             and probabilities[answer["choice"]] >= max(probabilities.values()) - 1e-6
         )
-    except (KeyError, TypeError, ValueError):
+    except (AttributeError, KeyError, TypeError, ValueError):
         valid = False
     if not valid:
-        raise ValueError("Invalid TypeSafe response; no action executed.")
+        raise ValueError("Invalid decision response; no action executed.")
     return answer
 
 
@@ -79,6 +131,7 @@ def action_space(actions):
 
 
 def choose(state, goal, history):
+    settings = decision_settings()
     elements, targets, controls = action_space(state["actions"])
     labels = {
         "CLICK": "Click an element, button, menu option, autocomplete suggestion, or calendar day.",
@@ -104,8 +157,12 @@ def choose(state, goal, history):
             },
             "instructions": {"goal": goal, "operation": operation, "rules": [NEXT_ACTION, TARGET]},
         }
+    if settings.provider == "kalm" and any(len(q["criteria"]) > 255 for q in questions.values()):
+        raise ValueError("KaLM supports at most 255 candidates per question; no targets discarded or action executed.")
+    if settings.provider == "typesafe" and not settings.api_key:
+        raise ValueError("TypeSafe needs TYPESAFE_API_KEY or DECISION_API_KEY; no action executed.")
     body = {
-        "model": os.environ.get("TYPESAFE_MODEL", "jev-latest"),
+        "model": settings.model,
         "state": {
             "page": {k: state[k] for k in ("url", "title", "text")},
             "elements": elements,
@@ -116,7 +173,9 @@ def choose(state, goal, history):
         "questions": questions,
     }
     started = time.perf_counter()
-    result = post_json("https://api.typesafe.ai/v1/systemone", os.environ["TYPESAFE_API_KEY"], body)
+    result = post_json(settings.base_url + "/systemone", settings.api_key, body, timeout=settings.timeout)
+    if not isinstance(result.get("answers"), dict) or not isinstance(result.get("model"), str):
+        raise ValueError("Invalid decision response; no action executed.")
     operation_answer = validate_choice(result["answers"].get("operation", {}), operations)
     operation = operation_answer["choice"]
     target = None
@@ -142,6 +201,7 @@ def choose(state, goal, history):
         "target_confidence": target_answer["confidence"] if target_answer else None,
         "raw_answers": result["answers"],
         "model": result["model"],
+        "provider": settings.provider,
         "usage": result.get("usage", {}),
         "latency_ms": round((time.perf_counter() - started) * 1000),
         "request": body,
@@ -159,12 +219,14 @@ def field_context(goal, action, page, history):
 
 def field_text(context):
     key = os.environ.get("TEXT_MODEL_API_KEY")
-    if not key:
-        raise ValueError("TYPE_TEXT needs TEXT_MODEL_API_KEY; no text is hardcoded or guessed by the executor.")
     base = os.environ.get("TEXT_MODEL_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
+    if not key and urlsplit(base).hostname not in {"127.0.0.1", "localhost", "::1"}:
+        raise ValueError("TYPE_TEXT needs TEXT_MODEL_API_KEY for a remote helper; no text is hardcoded or guessed.")
     model = os.environ.get("TEXT_MODEL", "deepseek-chat")
     reasoning = {"thinking": {"type": "disabled"}} if "api.deepseek.com/" in base else {"reasoning": {"effort": "low"}}
-    if os.environ.get("TEXT_MODEL_REASONING") == "none":
+    if os.environ.get("TEXT_MODEL_REASONING") == "omit":
+        reasoning = {}
+    elif os.environ.get("TEXT_MODEL_REASONING") == "none":
         reasoning = {"reasoning": {"enabled": False}}
     started = time.perf_counter()
     result = post_json(
@@ -189,7 +251,7 @@ def field_text(context):
         value = output["text"]
         if set(output) != {"text"} or not isinstance(value, str) or not value.strip() or len(value) > 2000:
             raise ValueError()
-    except (ValueError, KeyError, TypeError):
+    except (ValueError, KeyError, TypeError, IndexError):
         raise ValueError("Text helper returned no valid field value; nothing typed.") from None
     return value, {
         "model": model,
