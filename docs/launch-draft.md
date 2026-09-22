@@ -1,19 +1,24 @@
-# Tweet draft
+# Launch copy
 
-browser agents should move like this
+Draft for publication once the repository and attached media have been reviewed. This is local KaLM work, separate from the upstream hosted Jev demonstration.
 
-Zurich → London on Google Flights in 7.1 seconds. real time.
+## Short post
 
-> Jev picks the action + element
-> a small LLM writes the text
-> one goal, dynamic controls
+Browser agents should show their work.
 
-still waiting for Google to load haha
+Ultrafast Local gives Chrome a goal, lets KaLM choose from the page's actual controls, and puts every decision in an inspector. The decision model can run on your own machine. A separate text model handles typing.
 
-https://github.com/browser-use/jev-ultrafast
+Built on Browser Use's Jev Ultrafast. Still experimental: the repo includes passing tasks, failed cases and independent outcome checks.
 
----
+Code, setup and a real-time local recording:
+https://github.com/rcrandon/jev-ultrafast
 
-Draft only. Attach demo.mp4. Based on the 7.073-second verified recording; setup and initial navigation precede the timer.
+## Repository description
 
-Voice reference: recovered the “Find high-impact X posts” Codex task and its saved authored-post archive, including [the Qwen browser demo post](https://x.com/gregpr07/status/2090985180773388547). Short opening, concrete demo, compact technical explanation.
+An inspectable browser agent with local KaLM decisions, guarded execution and a live inspector. An experimental fork of Jev Ultrafast.
+
+## Media and claims
+
+Use [the local recording](media/local-demo.mp4) and [inspector image](media/inspector.png). The [cover](media/cover.png) is generated conceptual artwork. See [media provenance](media/README.md) for capture details.
+
+Preserve original playback speed. Any timing claim must name the task, hardware, checkpoint, configuration and measurement boundary. Link [validation](validation.md) so readers can see failures as well as successful examples. The upstream Google Flights footage and 7.1-second result describe hosted Jev and must not be presented as local KaLM performance.

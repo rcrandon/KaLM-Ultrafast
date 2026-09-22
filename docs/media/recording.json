@@ -1,0 +1,39 @@
+{
+  "passed": true,
+  "playback_speed": 1,
+  "frame_sampling_seconds": 0.5,
+  "goal": "Open the article about using finite choices to control browser agents.",
+  "outcome": {
+    "heading": "A browser is a choice, not a conversation",
+    "article": true,
+    "hash": "#choices"
+  },
+  "status": "done",
+  "recorded_seconds": 75.24478,
+  "agent_elapsed_ms": 74659,
+  "operations": [
+    "CLICK",
+    "DONE"
+  ],
+  "decision_calls": 2,
+  "text_calls": 0,
+  "source_sha256": {
+    "jev_ultrafast/agent.py": "95a17e7dde4293c93dc727aa0ed7e50c81c01f353bba47138df90b6d646edd1f",
+    "jev_ultrafast/browser.py": "9156f8b5c7dfa74c0548b0228e121183249ee8ac0922c5b59165fb2ad354373e",
+    "jev_ultrafast/demo.py": "3320d4da19136058b918fd0e6433c92d57998aeeec0bd34af5fa87e6eb4cd9be",
+    "jev_ultrafast/doctor.py": "a9776e66c6fa431978ff5b43215dda9744e79461012afa80f0cab635b2677666",
+    "jev_ultrafast/kalm_backend.py": "bcfc58e93ef0428f0cbf440c9f822d7132934e5a83b350571877224d26897535",
+    "jev_ultrafast/kalm_policy.py": "563e276abd80ec63d0e6ef0d0317ac4e6e0507415c7c41540c2fa89c2013d511",
+    "jev_ultrafast/model.py": "cafdbc974f211a715f5537a25d5f63f5d1727bfc5992799c352920c0ba0fb3db",
+    "jev_ultrafast/questions.py": "10eb02e39b78a5d20cc07488e869099a4f54328bd07e0d2bac4498371691ae8b",
+    "jev_ultrafast/snapshot.js": "34ec712f6febd655fc38c207cbf30d58c7a75a9977dc84b94472c3fc6c78824f",
+    "jev_ultrafast/__init__.py": "6228bfd1c5e9928943a05a49b38c2fe62e986d3a20513528392a2a9ab79ec2e6",
+    "jev_ultrafast/static/app.js": "e5cf3d004e7990051519ee05745b08843020d2a8966e0d1dbb427a6b9b70d4c5",
+    "jev_ultrafast/static/fixture.html": "baf6c49bf024bbe965e25d820c3e8f94380ef90f7b007e66dc715f54171928ff",
+    "jev_ultrafast/static/index.html": "a651f71d31f710ca4dfe6a7833341467fbbffebd82e6f98976349d51c4bd48bd",
+    "jev_ultrafast/static/style.css": "5480f7b2e8ce0595b7b076626fc72a6691bdea43e063624e3f5144446172c9e9"
+  },
+  "ending_hold_seconds": 2,
+  "interaction_seconds": 75.213,
+  "video_seconds": 79.25
+}

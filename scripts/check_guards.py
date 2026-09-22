@@ -154,6 +154,24 @@ def main():
         browser.evaluate("document.querySelector('h1').outerHTML='<h2>Open article</h2>'")
         assert not browser.fresh(page)
         passed.append("primary-content structural changes invalidate terminal decisions")
+        browser.evaluate("document.body.innerHTML=" + repr("""
+          <fieldset><legend>Notification settings</legend><label><input type=checkbox>Updates</label>
+          <p>Original fieldset explanation</p></fieldset>
+          <form><label><input type=radio name=frequency checked>Daily</label>
+          <label><input type=radio name=frequency>Weekly</label></form>
+          <form><label><input type=radio name=frequency checked>Other account</label></form>
+        """))
+        page = browser.observe(screenshot=False)
+        checkbox = next(a for a in page["actions"] if a["label"] == "Updates")
+        assert checkbox["native_control"] == "checkbox"
+        assert "Original fieldset explanation" in checkbox["context"]
+        browser.evaluate("document.querySelector('fieldset p').textContent='Changed fieldset explanation'")
+        assert not browser.fresh(page, checkbox)
+        passed.append("fieldset context changes invalidate the fast click guard")
+        radios = {a["label"]: a for a in page["actions"] if a.get("native_control") == "radio"}
+        assert radios["Daily"]["radio_group"] == radios["Weekly"]["radio_group"]
+        assert radios["Daily"]["radio_group"] != radios["Other account"]["radio_group"]
+        passed.append("native radio metadata preserves form-scoped group identity")
         browser.call("Page.navigate", url="about:blank")
         assert not browser.fresh(page, field)
         passed.append("navigation invalidates the old document")
