@@ -31,17 +31,23 @@
       <form id="task-form">
         <div class="task-label">
           <label for="goal">Give it a task</label
-          ><select id="scenario" name="scenario" aria-label="Demo scenario">
+          ><select id="scenario" name="scenario" aria-label="Browser starting point">
             <option value="research">Reading room · fixture</option>
             <option value="travel">Travel planner · fixture</option>
             <option value="flights">Google Flights · real web</option>
+            <option value="custom">Your URL · real browser</option>
           </select>
+        </div>
+        <div class="task-label url-label">
+          <label for="start-url">Open URL</label>
+          <input id="start-url" name="url" type="url" inputmode="url" autocomplete="url"
+            placeholder="https://example.com" aria-label="URL to open" />
         </div>
         <div class="task-row">
           <textarea id="goal" name="goal" rows="5">
 Open the article about using finite choices to control browser agents.</textarea
           ><button type="submit" id="start" class="primary">
-            Start demo <span>↗</span>
+            Start agent <span>↗</span>
           </button>
         </div>
       </form>
@@ -65,7 +71,7 @@ Open the article about using finite choices to control browser agents.</textarea
         <div class="browser-panel">
           <div class="browser-bar">
             <div class="traffic"><b></b><b></b><b></b></div>
-            <span id="url">Local demo browser</span
+            <span id="url">Controlled browser tab</span
             ><span class="live">LIVE</span>
           </div>
           <div class="viewport" id="viewport">
@@ -85,7 +91,7 @@ Open the article about using finite choices to control browser agents.</textarea
             <div id="targets"></div>
           </div>
           <div class="browser-footer">
-            <span id="page-title">Isolated demo tab</span
+            <span id="page-title">Controlled browser tab</span
             ><span>AX tree → typed actions → CDP</span>
           </div>
         </div>
@@ -133,7 +139,7 @@ Open the article about using finite choices to control browser agents.</textarea
       <details>
         <summary>What the model sees</summary>
         <pre id="model-state">
-Start a demo to inspect its structured state.</pre>
+Start an agent to inspect its structured state.</pre>
       </details>
       <footer>
         <span>Adapted from Browser Use × TypeSafe · Jev Ultrafast</span

@@ -58,6 +58,25 @@ def test_default_demo_uses_local_reading_room(settings, monkeypatch):
     assert agent.state["scenario"] == "research"
 
 
+def test_custom_url_starts_agent_on_user_selected_site(settings, monkeypatch):
+    agent = Mock(state={}, snapshot=Mock(return_value={"status": "ready"}))
+    constructor = Mock(return_value=agent)
+    monkeypatch.setattr(demo, "Agent", constructor)
+    goal = "Find the documentation link."
+    url = "https://example.com/docs?from=agent"
+    demo.command("reset", {"scenario": "custom", "goal": goal, "url": url})
+    assert constructor.call_args.args == (url, goal)
+    assert agent.state["scenario"] == "custom"
+    assert agent.state["start_url"] == url
+
+
+@pytest.mark.parametrize("url", ["", "file:///private.txt", "https://user:password@example.com"])
+def test_custom_url_rejects_unsafe_or_missing_address(settings, monkeypatch, url):
+    monkeypatch.setattr(demo, "Agent", Mock())
+    with pytest.raises(ValueError, match="URL must be"):
+        demo.command("reset", {"scenario": "custom", "goal": "Inspect page", "url": url})
+
+
 def test_environment_reads_utf8_bom_and_keeps_existing_values(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("INSPECTOR_UTF8_TEST", raising=False)

@@ -53,24 +53,43 @@ def command(name, body):
     global AGENT
     if name == "reset":
         scenario = body.get("scenario", "research")
-        if scenario not in {"travel", "research", "flights"}:
-            raise ValueError("Unknown demo scenario")
+        if scenario not in {"travel", "research", "flights", "custom"}:
+            raise ValueError("Unknown browser scenario")
         goal = body.get("goal", "").strip()
         if not goal or len(goal) > 2000:
             raise ValueError("Enter 1–2,000 characters")
+        requested_url = body.get("url", "").strip()
+        if scenario == "custom":
+            target_url = requested_url
+        elif requested_url:
+            target_url = requested_url
+        else:
+            target_url = (
+                "https://www.google.com/travel/flights?hl=en"
+                if scenario == "flights"
+                else f"{ORIGIN}/fixture.html?scenario={scenario}"
+            )
+        parsed = urlparse(target_url)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.username
+            or parsed.password
+            or len(target_url) > 4096
+        ):
+            raise ValueError("URL must be an http(s) address without embedded credentials.")
         close_browser()
         AGENT = Agent(
-            "https://www.google.com/travel/flights?hl=en"
-            if scenario == "flights"
-            else f"{ORIGIN}/fixture.html?scenario={scenario}",
+            target_url,
             goal,
             screenshots=True,
             record_dir=Path.cwd() / "artifacts" / "frames" if body.get("record") else None,
         )
         AGENT.state["scenario"] = scenario
+        AGENT.state["start_url"] = target_url
     else:
         if AGENT is None:
-            raise ValueError("Start a demo first")
+            raise ValueError("Start an agent first")
         AGENT.command(name, body)
     return response_state()
 
@@ -115,7 +134,7 @@ class Handler(BaseHTTPRequestHandler):
             or self.headers.get("X-Demo-Token") != TOKEN
             or self.headers.get("Origin") not in (None, ORIGIN)
         ):
-            return self.send(403, json.dumps({"error": "Local demo requests only"}))
+            return self.send(403, json.dumps({"error": "Local agent requests only"}))
         if not LOCK.acquire(blocking=False):
             return self.send(409, json.dumps({"error": "A browser step is already running"}))
         try:
@@ -128,7 +147,7 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, RuntimeError, TimeoutError) as error:
             self.send(400, json.dumps({"error": str(error)}))
         except Exception:
-            self.send(500, json.dumps({"error": "Local demo failed; no automatic retry. Reset to recover."}))
+            self.send(500, json.dumps({"error": "Local agent failed; no automatic retry. Start a fresh run to recover."}))
         finally:
             LOCK.release()
 

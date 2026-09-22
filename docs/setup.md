@@ -115,7 +115,7 @@ uv run --env-file .env jev
 
 Open **[http://127.0.0.1:8766](http://127.0.0.1:8766)**. The doctor checks service health and configuration without running inference. A healthy service can still make incorrect decisions.
 
-Start with the local Reading room fixture. **Choose next** inspects one prediction; **Run automatically** executes successive decisions. Tasks that only click, select or scroll do not need the text helper. Use the [independent task checks](../CONTRIBUTING.md#live-browser-checks) to verify outcomes beyond the inspector's `DONE` status.
+Start with the local Reading room fixture. **Choose next** inspects one prediction; **Run automatically** executes successive decisions. To use the agent on a site you choose, select **Your URL · real browser**, paste an `http://` or `https://` address, enter the goal, and click **Start agent**. The agent opens that address in a separate controlled Chrome tab so your existing tabs stay untouched. Tasks that only click, select or scroll do not need the text helper. Use the [independent task checks](../CONTRIBUTING.md#live-browser-checks) to verify outcomes beyond the inspector's `DONE` status.
 
 ## Text generation
 

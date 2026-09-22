@@ -8,6 +8,13 @@ const goals = {
   travel: 'Find a Design stay in Lisbon with Free cancellation and open Casa Flora.',
   research:
     "Open the article about using finite choices to control browser agents.",
+  custom: "Inspect this page and complete the user's request.",
+};
+const startUrls = {
+  flights: "https://www.google.com/travel/flights?hl=en",
+  travel: () => `${location.origin}/fixture.html?scenario=travel`,
+  research: () => `${location.origin}/fixture.html?scenario=research`,
+  custom: "",
 };
 const escape = (value) =>
   String(value ?? "").replace(
@@ -39,6 +46,7 @@ function controls() {
   $("start").disabled = busy;
   $("scenario").disabled = busy;
   $("goal").disabled = busy;
+  $("start-url").disabled = busy;
   $("choose").disabled = busy || !live;
   $("execute").disabled = busy || !state?.decision || !live;
   $("auto").disabled = busy || !live;
@@ -156,12 +164,16 @@ $("task-form").addEventListener("submit", (event) => {
   automatic = false;
   perform(
     () =>
-      call("reset", { scenario: $("scenario").value, goal: $("goal").value }),
+      call("reset", { scenario: $("scenario").value, goal: $("goal").value, url: $("start-url").value }),
     "Opening a fresh browser…",
   );
 });
 $("scenario").addEventListener("change", () => {
-  $("goal").value = goals[$("scenario").value];
+  const scenario = $("scenario").value;
+  $("goal").value = goals[scenario];
+  const value = startUrls[scenario];
+  $("start-url").value = typeof value === "function" ? value() : value;
+  $("start-url").required = scenario === "custom";
 });
 $("choose").addEventListener("click", () =>
   perform(() => call("predict"), `${providerLabel()} is comparing the actions…`),
@@ -243,8 +255,13 @@ fetch("/api/state")
   .then((r) => r.json())
   .then((s) => {
     state = s;
+    if (!$("start-url").value) {
+      const scenario = $("scenario").value;
+      const value = startUrls[scenario];
+      $("start-url").value = typeof value === "function" ? value() : value;
+    }
     render();
   })
   .catch(() => {
-    $("status").textContent = "Cannot reach local demo server";
+    $("status").textContent = "Cannot reach local agent server";
   });

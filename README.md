@@ -57,7 +57,7 @@ uv run --env-file .env jev-doctor
 uv run --env-file .env jev
 ```
 
-Open **[localhost:8766](http://127.0.0.1:8766)**. The Reading room fixture is a useful first task: it needs no accounts or text helper. Configure an OpenAI-compatible text model before trying tasks that type into fields.
+Open **[localhost:8766](http://127.0.0.1:8766)**. The Reading room fixture is a useful first task: it needs no accounts or text helper. For a real site, choose **Your URL · real browser**, paste the page address, enter a goal, and click **Start agent**. It opens a separate controlled Chrome tab and leaves your current tabs alone. Configure an OpenAI-compatible text model before trying tasks that type into fields.
 
 ## Why KaLM?
 
