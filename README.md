@@ -6,14 +6,9 @@
 
 A browser agent built around a small loop: observe the page, choose a supported action, execute it. [KaLM-Jev Nano](https://github.com/KaLM-Embedding/KaLM-Jev) ranks actions grounded in the live page. A separate text model supplies field values only when typing is needed.
 
-[Get started](docs/setup.md) · [Watch the demo](docs/media/local-demo.mp4) · [Results](docs/validation.md) · [KaLM vs. Laya](docs/backends.md) · [Contribute](CONTRIBUTING.md)
+[Get started](docs/setup.md) · [Results](docs/validation.md) · [KaLM vs. Laya](docs/backends.md) · [Contribute](CONTRIBUTING.md)
 
-> [!NOTE]
-> **Experimental browser policy.** Local article and form tasks have passed independent checks, but completion, recovery and leaving unrelated settings unchanged remain unreliable. See the [successes and failures](docs/validation.md). The Ultrafast name comes from the upstream project; its hosted Jev timings do not describe this CPU implementation.
 
-<a href="docs/media/local-demo.mp4"><img src="docs/media/inspector.png" alt="The local inspector showing an observed page, numbered controls, model choices and the action history" width="100%" /></a>
-
-**A real local run, at original speed.** [Watch the MP4](docs/media/local-demo.mp4) or inspect the [recording details](docs/media/README.md). The cover is generated artwork; the inspector image is an actual capture.
 
 ## The loop, opened up
 
