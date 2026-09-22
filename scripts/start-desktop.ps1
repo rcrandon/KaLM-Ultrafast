@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^[A-Za-z0-9_][A-Za-z0-9_.-]*@[A-Za-z0-9_][A-Za-z0-9_.:-]*$')]
-    [string]$SshTarget = 'User@192.168.1.200',
+    [string]$SshTarget = '',
     [string]$RemoteRuntime = '',
     [ValidateRange(1024, 65535)][int]$LocalPort = 8767,
     [ValidateRange(1024, 65535)][int]$RemotePort = 8767,
@@ -12,6 +12,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'desktop-config.ps1')
+$SshTarget = Resolve-JevSshTarget $SshTarget
 $ProgressPreference = 'SilentlyContinue'
 if (-not $LogDirectory) { $LogDirectory = Join-Path $PSScriptRoot '..\artifacts\desktop-staging' }
 

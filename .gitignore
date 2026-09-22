@@ -10,3 +10,9 @@ artifacts/
 *.egg-info/
 
 dist/
+
+.env.*
+!.env.example
+*.pem
+*.key
+.venv-*/

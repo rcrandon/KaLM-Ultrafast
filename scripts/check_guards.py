@@ -124,6 +124,36 @@ def main():
         assert value == "Generated", repr(value)
         assert any(a.get("role") == "option" for a in page["actions"])
         passed.append("real text input waits for asynchronous combobox suggestions")
+        browser.evaluate("document.body.innerHTML=" + repr("""
+          <article><a href="#one">Open note</a><p>First visible description</p>
+          <p hidden>hidden explanation must stay hidden</p></article>
+          <article><a href="#two">Read note</a><p>Second visible description</p>
+          <p style="position:absolute;top:4000px">offscreen explanation must stay offscreen</p></article>
+        """))
+        page = browser.observe(screenshot=False)
+        first = next(a for a in page["actions"] if a["label"] == "Open note")
+        second = next(a for a in page["actions"] if a["label"] == "Read note")
+        assert "First visible description" in first["context"] and "Second" not in first["context"]
+        assert "Second visible description" in second["context"] and "First" not in second["context"]
+        assert "hidden explanation" not in first["context"] and "offscreen explanation" not in second["context"]
+        passed.append("candidate context includes its visible card text without hidden or offscreen text")
+        browser.evaluate("document.querySelector('article p').textContent='Changed first description'")
+        assert not browser.fresh(page, first)
+        passed.append("changed candidate context invalidates its selected target")
+        browser.evaluate("document.body.innerHTML=" + repr("""
+          <main><h1>Open article</h1><p>Actual article body</p>
+          <a href="#back">Back</a><article><a href="#other">Another article</a>
+          <p>Navigation card description</p></article></main>
+        """))
+        page = browser.observe(screenshot=False)
+        assert "Actual article body" in page["content"]
+        assert "Navigation card description" not in page["content"]
+        back = next(a for a in page["actions"] if a["label"] == "Back")
+        assert "Actual article body" not in back.get("context", "")
+        passed.append("primary content excludes navigation cards and is not attributed to a back link")
+        browser.evaluate("document.querySelector('h1').outerHTML='<h2>Open article</h2>'")
+        assert not browser.fresh(page)
+        passed.append("primary-content structural changes invalidate terminal decisions")
         browser.call("Page.navigate", url="about:blank")
         assert not browser.fresh(page, field)
         passed.append("navigation invalidates the old document")

@@ -96,6 +96,7 @@ def test_all_heads_are_one_request_and_only_matching_head_executes(monkeypatch):
             },
         }
 
+    monkeypatch.setenv("DECISION_PROVIDER", "typesafe")
     monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     monkeypatch.setattr(model, "post_json", post)
     d = model.choose(page(), "Find a book", [])
@@ -115,6 +116,7 @@ def test_click_cannot_consume_a_text_target(monkeypatch):
             },
         }
 
+    monkeypatch.setenv("DECISION_PROVIDER", "typesafe")
     monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     monkeypatch.setattr(model, "post_json", post)
     with pytest.raises(ValueError, match="Invalid decision"):
@@ -131,11 +133,12 @@ def test_target_head_receives_control_state_and_full_next_step_rules(monkeypatch
     def post(_url, _key, body, **_kwargs):
         questions = body["questions"]
         target = questions["click_target"]
-        assert target["criteria"]["1"]["checked"] == "true"
-        assert target["criteria"]["1"]["selected"] is False
-        assert model.NEXT_ACTION in questions["operation"]["instructions"]
-        assert model.NEXT_ACTION in target["instructions"]
-        assert model.TARGET in target["instructions"]
+        control = target["criteria"]["1"]
+        assert control["checked"] == "true"
+        assert control["selected"] is False
+        assert model.NEXT_ACTION == questions["operation"]["instructions"]["rules"]
+        assert model.NEXT_ACTION in target["instructions"]["rules"]
+        assert model.TARGET in target["instructions"]["rules"]
         return {
             "model": "test",
             "answers": {
@@ -144,6 +147,7 @@ def test_target_head_receives_control_state_and_full_next_step_rules(monkeypatch
             },
         }
 
+    monkeypatch.setenv("DECISION_PROVIDER", "typesafe")
     monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     monkeypatch.setattr(model, "post_json", post)
     d = model.choose(p, "Search with free cancellation", [])

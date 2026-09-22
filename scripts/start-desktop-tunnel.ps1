@@ -1,5 +1,7 @@
-param([string]$Destination = 'User@192.168.1.200', [int]$Port = 8767)
+param([string]$Destination = '', [int]$Port = 8767)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'desktop-config.ps1')
+$Destination = Resolve-JevSshTarget $Destination
 try {
     $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 3
     if ($health.status -eq 'ok' -and $health.model -eq 'kalm-jev-nano') {

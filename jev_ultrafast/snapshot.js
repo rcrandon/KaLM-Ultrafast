@@ -90,12 +90,22 @@
     }
   }
   const text=words.join('\n').slice(0,6000), height=document.documentElement.scrollHeight;
+  const contentNodes=new Set();
+  for (const heading of document.querySelectorAll('h1,[role="heading"][aria-level="1"]')) {
+    if (heading.closest('a,button,nav,header') || !visible(heading)) continue;
+    contentNodes.add(heading);
+    for (const sibling of heading.parentElement.children) {
+      if (sibling.tagName==='P' && !sibling.querySelector(selector)) contentNodes.add(sibling);
+    }
+  }
+  const content=[...contentNodes].map(element=>visibleWords.filter(word=>element.contains(word.parent))
+    .map(word=>word.value).join(' ')).filter(Boolean).join('\n');
   // Associate a control with its visible card/row/form text. Nearby descriptions
   // distinguish vague link names without inventing destinations or hidden facts.
   for (const action of actions) {
     const element=cache.nodes.get(action.node);
     const scope=element.closest('article,li,tr,[role="row"],fieldset,form,dialog,[role="dialog"]') || element.parentElement;
-    if (scope && scope!==document.body && scope!==document.documentElement) {
+    if (scope && !scope.matches('body,html,main,[role="main"]')) {
       action.context=visibleWords.filter(word=>scope.contains(word.parent)).map(word=>word.value).join('\n');
     }
   }
@@ -104,13 +114,13 @@
   // Compare meaning and identity. Geometry is always resolved and hit-tested just before input.
   const semantics=actions.map(({rect,...action})=>action);
   const marker=[performance.timeOrigin,location.href,scrollX,scrollY,innerWidth,innerHeight,
-    document.title,text,semantics,page_key[6]];
+    document.title,text,content,semantics,page_key[6]];
   const omitted_actions=Math.max(0,actions.length-250);
   actions.splice(250);
   actions.forEach((a,i)=>a.id='e'+(i+1));
   if (scrollY+innerHeight<height-2) actions.push({id:'scroll_down',kind:'scroll',label:'Scroll down',delta:560});
   if (scrollY>0) actions.push({id:'scroll_up',kind:'scroll',label:'Scroll up',delta:-560});
   actions.push({id:'wait',kind:'wait',label:'Wait for the page to update'});
-  return {url:location.href,title:document.title,w:innerWidth,h:innerHeight,text,
+  return {url:location.href,title:document.title,w:innerWidth,h:innerHeight,text,content,
     scroll:{y:scrollY,height},actions,marker,page_key,guards,omitted_actions};
 })()

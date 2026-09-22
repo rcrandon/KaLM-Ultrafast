@@ -63,6 +63,9 @@ def answer(ids, selected):
 def result_for(request, operation="SELECT", target="3:2"):
     body = json.loads(request.content)
     questions = body["questions"]
+    if "action" in questions:
+        selected = f"{operation}:{target}" if operation in {"CLICK", "SELECT", "TYPE_TEXT"} else operation
+        return {"model": body["model"], "answers": {"action": answer(questions["action"]["criteria"], selected)}}
     answers = {"operation": answer(questions["operation"]["criteria"], operation)}
     if operation in {"CLICK", "TYPE_TEXT", "SELECT"}:
         head = operation.lower() + "_target"
@@ -70,39 +73,41 @@ def result_for(request, operation="SELECT", target="3:2"):
     return {"model": body["model"], "answers": answers, "usage": {"input_tokens": 25}}
 
 
-def test_default_kalm_sends_all_heads_once_and_maps_observed_dropdown(http, page):
+def test_kalm_joint_choice_maps_observed_option_and_preserves_goal(http, page):
     http.respond = lambda request: httpx.Response(200, json=result_for(request))
     decision = model.choose(page, "Find a room with free cancellation", [])
     assert len(http.requests) == 1
     request = http.requests[0]
     assert str(request.url) == "http://127.0.0.1:8767/v1/systemone"
-    assert request.method == "POST"
     assert "authorization" not in request.headers
     assert request.extensions["timeout"]["read"] == 120
     body = json.loads(request.content)
-    assert body["model"] == "kalm-jev-nano"
-    assert set(body["questions"]) == {"operation", "click_target", "type_text_target", "select_target"}
-    assert set(body["questions"]["operation"]["criteria"]) == {
-        "CLICK", "TYPE_TEXT", "SELECT", "WAIT", "DONE", "BLOCKED"
+    assert body["state"] == "Find a room with free cancellation"
+    assert set(body["questions"]) == {"action"}
+    head = body["questions"]["action"]
+    assert set(head["criteria"]) == {
+        "CLICK:1", "CLICK:2", "TYPE_TEXT:1", "SELECT:3:1", "SELECT:3:2", "WAIT", "DONE", "BLOCKED"
     }
-    assert set(body["questions"]["click_target"]["criteria"]) == {"1", "2"}
-    assert set(body["questions"]["type_text_target"]["criteria"]) == {"1"}
-    assert set(body["questions"]["select_target"]["criteria"]) == {"3:1", "3:2"}
-    assert body["questions"]["select_target"]["criteria"]["3:2"]["current_value"] == "Any"
-    assert "Find a room with free cancellation" in body["state"]
-    observation = json.loads(body["questions"]["operation"]["instructions"].split("untrusted data):\n")[1])
-    assert len(observation["elements"]) == 3
-    assert observation["page"]["text"] == page["text"]
-    for question in body["questions"].values():
-        assert model.NEXT_ACTION in question["instructions"]
-        assert question["instructions"].endswith(json.dumps(observation, ensure_ascii=False))
-    assert "[2] Search" in body["questions"]["operation"]["criteria"]["CLICK"]
-    assert 'already open page titled "Find a room"' in body["questions"]["operation"]["criteria"]["DONE"]
-    assert observation["elements"][2]["options"][1]["value"] == "free"
+    assert "Policy: Free cancellation" in head["criteria"]["SELECT:3:2"]
+    assert "Policy: Any" in head["criteria"]["DONE"]
+    assert model.NEXT_ACTION in head["instructions"]
     assert (decision["provider"], decision["operation"], decision["target"], decision["choice"]) == (
         "kalm", "SELECT", "3:2", "policy-free"
     )
+    assert decision["score_mode"] == "joint_action"
     assert decision["probabilities"] == {"policy-any": 0.0, "policy-free": 1.0}
+
+
+def test_kalm_keeps_local_context_and_records_recent_actions(http, page):
+    page["actions"][2]["context"] = "Search rooms with the selected cancellation policy."
+    history = [{"action": "City", "kind": "fill", "text": "Oslo", "page_changed": True}]
+    http.respond = lambda request: httpx.Response(200, json=result_for(request, "CLICK", "2"))
+    decision = model.choose(page, "Find a room in Oslo", history)
+    body = json.loads(http.requests[0].content)
+    head = body["questions"]["action"]
+    assert page["actions"][2]["context"] in head["criteria"]["CLICK:2"]
+    assert decision["observation"]["recent_actions"] == history
+    assert body["state"] == "Find a room in Oslo"
 
 
 def test_explicit_typesafe_uses_legacy_credentials_and_model(http, page, monkeypatch):
@@ -130,9 +135,9 @@ def test_kalm_done_is_the_model_choice_in_the_same_request_not_a_local_page_rule
     assert len(http.requests) == 1
     assert decision["operation"] == decision["choice"] == "DONE"
     assert decision["target"] is None
-    assert decision["raw_answers"]["operation"]["choice"] == "DONE"
+    assert decision["raw_answers"]["action"]["choice"] == "DONE"
     # Unused target heads need not exist when the operation is terminal.
-    assert set(decision["raw_answers"]) == {"operation"}
+    assert set(decision["raw_answers"]) == {"action"}
 
 
 @pytest.mark.parametrize("key", ["", "test-local-secret"])
@@ -152,7 +157,9 @@ def test_configured_service_timeout_and_optional_auth_reach_http(http, page, mon
     assert decision["target"] is None
 
 
-def test_invalid_unused_heads_cannot_override_selected_operation(http, page):
+def test_invalid_unused_heads_cannot_override_selected_operation(http, page, monkeypatch):
+    monkeypatch.setenv("DECISION_PROVIDER", "typesafe")
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     def respond(request):
         result = result_for(request, "TYPE_TEXT", "1")
         result["answers"].update(click_target={"choice": "unobserved"}, select_target=["invalid"])
@@ -171,34 +178,39 @@ def test_invalid_unused_heads_cannot_override_selected_operation(http, page):
      "missing_probability", "probability_array", "nan_probability", "wrong_probability_sum",
      "boolean_confidence", "wrong_operation"],
 )
-def test_malformed_wire_response_never_becomes_a_decision(http, page, malformed):
+@pytest.mark.parametrize("provider", ["kalm", "typesafe"])
+def test_malformed_wire_response_never_becomes_a_decision(http, page, malformed, provider, monkeypatch):
+    monkeypatch.setenv("DECISION_PROVIDER", provider)
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test")
     def respond(request):
         if malformed == "invalid_json":
             return httpx.Response(200, text="not json")
         if malformed == "top_level_array":
             return httpx.Response(200, json=[])
         result = result_for(request)
-        selected = result["answers"]["select_target"]
+        head = "action" if provider == "kalm" else "select_target"
+        selected = result["answers"][head]
+        prefix = "SELECT:" if provider == "kalm" else ""
         if malformed == "answers_array":
             result["answers"] = []
         elif malformed == "missing_model":
             del result["model"]
         elif malformed == "missing_head":
-            del result["answers"]["select_target"]
+            del result["answers"][head]
         elif malformed == "unknown_target":
-            selected.update(choice="3:999", probabilities={"3:1": 0.0, "3:999": 1.0})
+            selected["choice"] = prefix + "3:999"
         elif malformed == "missing_probability":
-            del selected["probabilities"]["3:1"]
+            del selected["probabilities"][prefix + "3:1"]
         elif malformed == "probability_array":
             selected["probabilities"] = [0.0, 1.0]
         elif malformed == "nan_probability":
-            selected["probabilities"]["3:2"] = float("nan")
+            selected["probabilities"][prefix + "3:2"] = float("nan")
         elif malformed == "wrong_probability_sum":
             selected["probabilities"] = {"3:1": 0.6, "3:2": 0.6}
         elif malformed == "boolean_confidence":
             selected["confidence"] = True
         elif malformed == "wrong_operation":
-            result["answers"]["operation"]["choice"] = "EXECUTE_SCRIPT"
+            result["answers"]["action" if provider == "kalm" else "operation"]["choice"] = "EXECUTE_SCRIPT"
         return httpx.Response(200, text=json.dumps(result), headers={"Content-Type": "application/json"})
 
     http.respond = respond
