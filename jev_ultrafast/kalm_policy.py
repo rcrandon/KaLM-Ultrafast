@@ -20,8 +20,13 @@ def control_values(actions, changed=None):
         same = changed is not None and changed.get("node") == node
         if role in {"checkbox", "switch", "radio"} and action.get("checked") in {"true", "false"}:
             checked = action["checked"] == "true"
-            if same and changed["kind"] == "click":
-                checked = True if role == "radio" else not checked
+            if same and changed["kind"] == "click" and action.get("native_control") == "checkbox":
+                checked = not checked
+            if changed and changed.get("native_control") == "radio" and changed["kind"] == "click":
+                if same:
+                    checked = True
+                elif action.get("radio_group") and action["radio_group"] == changed.get("radio_group"):
+                    checked = False
             rows.append(label + ": " + ("enabled" if checked else "disabled"))
         elif action["kind"] == "select":
             value = action.get("current_value", "")
@@ -42,7 +47,7 @@ def request(page, goal, model, targets, controls):
     values = control_values(page["actions"])
     for operation, candidates in targets.items():
         for index, action in candidates.items():
-            if action.get("role") in {"checkbox", "switch"} and action.get("checked") in {"true", "false"}:
+            if action.get("native_control") == "checkbox" and action.get("checked") in {"true", "false"}:
                 description = ("Disable " if action["checked"] == "true" else "Enable ") + action["label"]
             elif operation == "SELECT":
                 description = "Set " + action["label"].replace(" → ", " to ", 1)

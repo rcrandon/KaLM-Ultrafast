@@ -1,0 +1,40 @@
+name: Bug or incorrect browser decision
+description: Report a reproducible failure, including a wrong action or false completion.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove credentials, private URLs, page contents and entered values before sharing a trace. Use dummy data and a local fixture where possible. For security issues, read SECURITY.md.
+  - type: input
+    id: revision
+    attributes:
+      label: Project revision
+      description: Commit hash or release, plus any local changes.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Goal and reproduction
+      description: Exact natural-language goal, starting state and steps. Include a minimal fixture when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected and observed result
+      description: Include unwanted changes and how you independently checked the page. DONE alone is not a verified outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser, model and checkpoint revision, provider, CPU/GPU, runtime settings and step budget. Do not include keys or private host addresses.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Relevant errors, selected action IDs, outcome checks or a reviewed trace. Mention any input truncation.

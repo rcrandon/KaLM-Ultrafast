@@ -3,7 +3,8 @@
 param(
     [string]$RuntimeRoot = (Join-Path $env:USERPROFILE 'jev-browserUse-runtime'),
     [ValidateRange(1024, 65535)][int]$Port = 8767,
-    [ValidateRange(1, 64)][int]$Threads = 4
+    [ValidateRange(1, 64)][int]$Threads = 4,
+    [ValidateSet(1, 2, 4, 8, 16, 32, 64, 128)][int]$ChunkSize = 4
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,7 +44,7 @@ $env:HF_HUB_DISABLE_TELEMETRY = '1'
 $env:PYTHONUNBUFFERED = '1'
 $serverArgs = @(
     $serverScript, '--model-path', $modelPath, '--device', 'cpu', '--dtype', 'float32',
-    '--threads', [string]$Threads, '--query-max-length', '4096',
+    '--threads', [string]$Threads, '--chunk-size', [string]$ChunkSize, '--query-max-length', '4096',
     '--document-max-length', '1024', '--decoder-max-length', '6144',
     '--port', [string]$Port, '--verify-readout', '--verification-output',
     (Join-Path $RuntimeRoot 'readout-parity.json')

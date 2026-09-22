@@ -1,4 +1,6 @@
-<img src="docs/banner.svg" alt="Jev Ultrafast · Browser Use × TypeSafe" width="100%" />
+> Archived upstream README at `1231850`. Hosted Jev footage and measurements; these are not local KaLM results. [Return to Ultrafast Local](../README.md).
+
+<img src="banner.svg" alt="Jev Ultrafast · Browser Use × TypeSafe" width="100%" />
 
 # Jev Ultrafast ⚡
 
@@ -12,9 +14,9 @@ Give it one goal. [TypeSafe's Jev](https://docs.typesafe.ai/introduction) picks 
 
 **Zürich → London on Google Flights in 7.1 seconds.** One natural-language goal, actual text generation, and loading waits included.
 
-<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="A real Google Flights search at 1× speed, with generated city names and dynamic operation/target decisions" width="100%" /></a>
+<a href="demo.mp4"><img src="demo.gif" alt="A real Google Flights search at 1× speed, with generated city names and dynamic operation/target decisions" width="100%" /></a>
 
-[Watch the MP4](docs/demo.mp4) · [Measurements](docs/performance.md) · [Read the loop](jev_ultrafast/agent.py)
+[Watch the MP4](demo.mp4) · [Measurements](performance.md) · [Read the loop](../jev_ultrafast/agent.py)
 
 ## The action space
 
@@ -108,12 +110,12 @@ Every executed target is resolved from an observed node. The executor rechecks p
 
 | File | Job |
 | --- | --- |
-| [agent.py](jev_ultrafast/agent.py) | The complete loop and text-helper handoff |
-| [snapshot.js](jev_ultrafast/snapshot.js) | Atomic DOM snapshot, indexed controls, freshness guards |
-| [browser.py](jev_ultrafast/browser.py) | Browser connection, current geometry, execution |
-| [model.py](jev_ultrafast/model.py) | Dynamic operation/target heads and text generation |
-| [questions.py](jev_ultrafast/questions.py) | Model instructions |
-| [demo.py](jev_ultrafast/demo.py) | Local inspector |
+| [agent.py](../jev_ultrafast/agent.py) | The complete loop and text-helper handoff |
+| [snapshot.js](../jev_ultrafast/snapshot.js) | Atomic DOM snapshot, indexed controls, freshness guards |
+| [browser.py](../jev_ultrafast/browser.py) | Browser connection, current geometry, execution |
+| [model.py](../jev_ultrafast/model.py) | Dynamic operation/target heads and text generation |
+| [questions.py](../jev_ultrafast/questions.py) | Model instructions |
+| [demo.py](../jev_ultrafast/demo.py) | Local inspector |
 
 ## Evidence and limits
 
@@ -121,7 +123,7 @@ The current video is a **7,073 ms** Google Flights run. Timing starts after init
 
 In six alternating runs with identical models and settings, both versions passed **3/3**. Median task time went from **9.450 s → 7.092 s**, a **25% reduction**; median browser protocol calls went from **1,092 → 101**. This is three repeats of one task on one browser profile, not a general reliability benchmark.
 
-The same policy opened the requested Wikipedia article in **2.798 s** and passed a local hotel search/filter task in **1.896 s**. Runs, failures, source hashes, and measurement boundaries are in [performance.md](docs/performance.md).
+The same policy opened the requested Wikipedia article in **2.798 s** and passed a local hotel search/filter task in **1.896 s**. Runs, failures, source hashes, and measurement boundaries are in [performance.md](performance.md).
 
 A `DONE` choice still requires independent outcome verification. The DOM reader handles common HTML and ARIA controls, not the full accessible-name specification. Shadow roots, frames, canvas, uploads, pop-up tabs, nested scrolling, and arbitrary keyboard widgets remain outside this MVP. Owned tabs share the existing Chrome profile.
 

@@ -2,11 +2,11 @@
 
 Assessment date: September 21, 2026.
 
-**Keep KaLM-Jev Nano as the experimental backend, but neither option is a validated Jev replacement.** Its HTTP interface and configurable input limits fit Ultrafast's operation and target questions. Live checks exposed incorrect decisions from both candidates. There is no evidence that Laya is overwhelmingly better and would justify an MLX port for this project now.
+**Keep KaLM-Jev Nano as the experimental backend, but neither option is a validated general Jev replacement.** Its HTTP interface and configurable input limits support the browser's finite action set. The current adapter ranks complete operation and target pairs, with descriptions suited to KaLM's retrieval training. There is no evidence that Laya is overwhelmingly better and would justify an MLX port for this project now.
 
-KaLM initially opened the requested article, then navigated back instead of stopping. A later adaptation of its action descriptions preserved Jev's model-selected completion and passed that task, but a second article task still failed with the wrong target and false completion. Laya's typed checkpoint, evaluated through its original PyTorch runtime on earlier captured requests, chose the wrong link with the original format and predicted premature completion with the adapted format. Laya also truncated instructions in every tested capture. These observations do not establish comparative accuracy rates. See the [local evidence and reproduction steps](validation.md).
+KaLM now passes several complete local article and form tasks, including its own completion decision followed by an independent outcome check. Other cases still expose unwanted control changes, failure to stop, and failed recovery. Laya's typed checkpoint was evaluated through its original PyTorch runtime on earlier captured requests. It chose the wrong link with the original format, predicted premature completion with an adapted format, and truncated instructions in every tested capture. These are different evaluations, not comparative accuracy rates. See the [current evidence and reproduction steps](validation.md) and [earlier experiments](experiments.md).
 
-The laptop has Intel integrated graphics. The inspected desktop has an Intel i7-8700, 16 GB of RAM and an 8 GB GTX 1080. At inspection, about 5 GB of RAM and 902 MiB of GPU memory were free. An existing user model occupied the GPU and was left running. Those free-memory figures are a snapshot, not a permanent capacity estimate. CPU execution is the initial path; its practical speed still needs measurement.
+The inspected inference desktop has an Intel i7-8700, 16 GB of RAM and an 8 GB GTX 1080. An existing text model occupied the GPU, so the KaLM service and Laya comparison used CPU. Neither has undergone a controlled speed comparison on this machine. Single-call timings and complete task results are recorded separately in [validation](validation.md).
 
 | Requirement | KaLM-Jev | Laya-MLX |
 | --- | --- | --- |
@@ -19,9 +19,19 @@ The laptop has Intel integrated graphics. The inspected desktop has an Intel i7-
 
 Interface details come from the inspected [KaLM schema and engine][kalm-schema] and [Laya runtime][laya-agent]. Both provide the choice, probabilities and confidence fields needed by the browser policy. Neither generates text for `TYPE_TEXT`; that still requires a separate text model. Ultrafast must continue to validate the chosen operation and its matching target against observed browser elements. [Ultrafast policy][ultrafast-model]
 
-**Why KaLM fits the existing loop**
+## Why KaLM fits the loop
 
-KaLM accepts the nested instructions and criterion descriptions already produced by Ultrafast. A request must name the loaded alias, such as `kalm-jev-nano`, or omit `model`; sending `jev-latest` produces HTTP 400. The service has one loaded model per process. Choice heads allow up to 255 candidates, which covers the original snapshot's overall cap of 250 browser actions. [KaLM schema][kalm-schema], [request handling][kalm-engine], [snapshot cap][ultrafast-snapshot]
+KaLM accepts nested instructions and criterion descriptions, but syntactic compatibility did not make the original browser policy work. A request must name the loaded alias, such as `kalm-jev-nano`, or omit `model`; sending `jev-latest` produces HTTP 400. The service has one loaded model per process. Each choice head permits up to 255 candidates. The adapter counts the complete offered action set, including terminal choices, and rejects an oversized request instead of dropping targets. [KaLM schema][kalm-schema], [request handling][kalm-engine], [local adapter](../jev_ultrafast/kalm_policy.py)
+
+### Adapt the question to the model
+
+KaLM is a pointwise reranker: it scores each candidate document against the query, then normalizes those scores into a choice distribution. The [KaLM paper](https://arxiv.org/html/2606.22807v1) describes its retrieval training and encoder-decoder scoring. A generic `CLICK` description and a generic `DONE` description do not offer the same evidence as concrete browser actions.
+
+The local adapter sends the user's exact goal as the query and offers one finite choice over supported actions such as `CLICK:4`, `SELECT:2:1`, `DONE` and `BLOCKED`. Link candidates carry visible nearby context. Native checkbox and dropdown candidates describe the local control values after that action. These descriptions do not predict navigation success or server-side effects. The completion candidate describes the current main content or observed form values.
+
+This preserves the execution boundary: a valid choice resolves to an observed node, and the executor checks page freshness before acting. It changes the decision format. Hosted TypeSafe still uses its original operation and operation-specific target heads; KaLM chooses a joint action in one request. Inspector operation scores are summed groups of KaLM's joint probabilities, and target scores are normalized within the chosen operation. They are display summaries, not additional model predictions. [Policy implementation](../jev_ultrafast/kalm_policy.py), [response handling](../jev_ultrafast/model.py)
+
+The agent accepts `DONE` only after checking that the page is still fresh. It does not contain a page-specific success predicate. Independent task checkers run after the model stops and verify the live DOM. This follows the public Jev loop's division between model decisions and outcome measurement. It does not reproduce Jev's proprietary training. [Upstream agent](https://github.com/browser-use/jev-ultrafast/blob/1231850a0bf1a0c0341fe408ef1668dbbfdfac46/jev_ultrafast/agent.py), [local task checker](../scripts/check_local_agent.py)
 
 The default KaLM limits are 512 tokens for state, 1,024 tokens per candidate document and 2,048 tokens for the complete decoder prompt. Ordinary browser observations can exceed the state limit. The server exposes `--query-max-length`, `--document-max-length` and `--decoder-max-length`; it checks lengths before model execution and returns HTTP 422 on overflow. Increasing the limits preserves the request but increases cost. The original rules, goal and model template must fit alongside state in the decoder budget. [Limit documentation][kalm-limits], [server options][kalm-server]
 
@@ -33,7 +43,7 @@ There is also a large temporary allocation in the inspected KaLM backend. It com
 
 Transformers supports selecting positions with `logits_to_keep` before vocabulary projection. This project implements that optimization, accounting for right padding and unequal row lengths. Four comparisons with the real Nano weights passed in FP32; maximum absolute margin error was 5.72e-6. This reduces the vocabulary-output allocation, while attention, weights and other working memory remain. [Transformers T5Gemma2 implementation][transformers-model], [local validation](validation.md)
 
-**What a Laya port would and would not solve**
+## What a Laya port would and would not solve
 
 MLX is no longer limited to macOS. Official documentation provides Linux CPU and CUDA installation paths. The CUDA package requires NVIDIA compute capability 7.5 or higher; the GTX 1080 is 6.1. Moving this desktop to WSL or Linux does not change that hardware limit. [MLX installation requirements][mlx-install], [NVIDIA legacy GPU table][nvidia-legacy]
 
@@ -45,7 +55,7 @@ The harder issue is the browser observation. Laya's English checkpoint uses 512 
 
 Upstream Laya reports that 50 or more options are a weakness: many labels receive too little text to remain distinguishable. Its stronger typed-decisions result comes from a checkpoint tuned for four specific workflows. That result does not establish browser-action quality. A Laya browser integration would need explicit overflow checks and an evaluated strategy for reducing observations or selecting candidate groups. Such changes also alter Ultrafast's decision process. [Upstream results and limitations][laya-upstream-readme]
 
-**What the published measurements establish**
+## What the published measurements establish
 
 | Published measurement | Conditions | Limit of the evidence |
 | --- | --- | --- |
@@ -55,7 +65,7 @@ Upstream Laya reports that 50 or more options are a weakness: many labels receiv
 
 Sources: [Laya-MLX benchmark method and results][laya-benchmarks], [KaLM results][kalm-results]. Laya's port-fidelity checks compare its outputs with upstream Laya; they do not prove that the chosen answers are correct. KaLM's confidence measures distribution concentration and is uncalibrated by default. Neither score should replace independent verification that a browser goal was completed. [KaLM aggregation][kalm-aggregation]
 
-**Licenses and reproducibility**
+## Licenses and reproducibility
 
 Ultrafast declares MIT. Laya-MLX supplies an Apache-2.0 license and attribution notice, and its converted checkpoints declare Apache-2.0. At the inspected revision, KaLM-Jev has no repository license file or license field in its package metadata, so its code licensing is not established by those sources. The KaLM model cards declare Apache-2.0, while the T5Gemma base model declares Gemma terms. KaLM's own documentation directs users to the original publishers for applicable checkpoint terms. Keep these distinctions in dependency records; do not assign an assumed license to the KaLM-Jev service code. [Ultrafast license][ultrafast-license], [Laya code license][laya-license], [Laya checkpoint license][laya-card], [KaLM package metadata][kalm-package], [KaLM license note][kalm-aggregation], [base model card][gemma-card]
 

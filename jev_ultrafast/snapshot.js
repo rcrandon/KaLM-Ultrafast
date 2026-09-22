@@ -43,14 +43,15 @@
   };
   cache.pageKey=()=>[performance.timeOrigin,location.href,scrollX,scrollY,innerWidth,innerHeight,
     [...document.querySelectorAll('input,textarea,select')].filter(safe)
-      .map(e=>[identity(e),e.value,e.checked,e.selectedIndex,e.disabled,e.readOnly])];
+      .map(e=>[identity(e),e.value,e.checked,e.selectedIndex,e.disabled,e.readOnly,e.name,
+        e.form ? identity(e.form) : null])];
   cache.guard=e=>{
     if (!e?.isConnected || !visible(e)) return null;
-    const scope=e.closest('form,dialog,[role="dialog"],article,li,tr,[role="row"]') || e.parentElement;
+    const scope=e.closest('form,dialog,[role="dialog"],article,li,tr,[role="row"],fieldset') || e.parentElement;
     return [identity(e),role(e),name(e),e.value??null,e.checked??null,e.selectedIndex??null,
       e.readOnly??null,e.matches(':disabled'),e.getAttribute('aria-disabled'),
       e.getAttribute('aria-expanded'),e.getAttribute('aria-checked'),e.getAttribute('aria-selected'),
-      e.getAttribute('href'),scope?.innerText?.slice(0,6000)||''];
+      e.getAttribute('href'),e.getAttribute('name'),scope?.innerText?.slice(0,6000)||''];
   };
   const actions=[];
   for (const e of document.querySelectorAll(selector)) {
@@ -64,7 +65,12 @@
       const value=e.getAttribute('aria-'+key);
       if (value!==null) base[key]=value;
     }
-    if (['checkbox','radio'].includes(e.type)) base.checked=String(e.checked);
+    if (e.tagName==='INPUT' && ['checkbox','radio'].includes(e.type)) {
+      base.checked=String(e.checked);
+      base.native_control=e.type;
+      if (e.type==='radio') base.radio_group=e.name ?
+        JSON.stringify([e.form ? identity(e.form) : null,e.name]) : 'node:'+base.node;
+    }
     if (e.tagName==='SELECT') {
       for (const o of e.options) if (!o.selected && !o.disabled && !o.closest('optgroup[disabled]'))
         actions.push({...base,kind:'select',value:o.value,

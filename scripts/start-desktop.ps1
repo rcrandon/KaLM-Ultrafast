@@ -7,6 +7,7 @@ param(
     [ValidateRange(1024, 65535)][int]$LocalPort = 8767,
     [ValidateRange(1024, 65535)][int]$RemotePort = 8767,
     [ValidateRange(1, 64)][int]$Threads = 4,
+    [ValidateSet(1, 2, 4, 8, 16, 32, 64, 128)][int]$ChunkSize = 4,
     [ValidateRange(10, 600)][int]$StartupTimeoutSeconds = 120,
     [string]$LogDirectory = ''
 )
@@ -34,7 +35,7 @@ if (-not (Test-Path -LiteralPath $remoteLauncher -PathType Leaf)) {
 }
 # Send the checked-in launcher itself, so restart does not depend on ignored artifacts.
 # Send source through stdin rather than exceeding Windows' remote command-line limit.
-$remoteScript = "& {`n" + (Get-Content -LiteralPath $remoteLauncher -Raw) + "`n} -Port $RemotePort -Threads $Threads"
+$remoteScript = "& {`n" + (Get-Content -LiteralPath $remoteLauncher -Raw) + "`n} -Port $RemotePort -Threads $Threads -ChunkSize $ChunkSize"
 if ($RemoteRuntime) {
     $remoteScript += " -RuntimeRoot '" + $RemoteRuntime.Replace("'", "''") + "'"
 }

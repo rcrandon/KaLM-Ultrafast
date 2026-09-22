@@ -16,6 +16,8 @@ def main():
     parser.add_argument("--model-path", required=True, help="Complete pinned KaLM Nano model directory")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--dtype", choices=["float32", "float16", "bfloat16"], default="float32")
+    parser.add_argument("--chunk-size", type=int, choices=[1, 2, 4, 8, 16, 32, 64, 128], default=4,
+                        help="Document compression ratio; 1 keeps every encoder position")
     parser.add_argument("--port", type=int, default=8767)
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--query-max-length", type=int, default=4096)
@@ -40,7 +42,7 @@ def main():
     backend_type = TransformersBackend if args.full_logits else ReadoutBackend
     backend = backend_type(
         model="kalm-jev-nano", model_path=args.model_path, revision=NANO_REVISION,
-        device=args.device, dtype=args.dtype, batch_size=1,
+        device=args.device, dtype=args.dtype, batch_size=1, chunk_size=args.chunk_size,
         query_max_length=args.query_max_length, document_max_length=args.document_max_length,
         decoder_max_length=args.decoder_max_length,
     )

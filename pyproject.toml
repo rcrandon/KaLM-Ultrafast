@@ -1,11 +1,17 @@
 [project]
 name = "jev-ultrafast"
 version = "0.1.0"
-description = "A browser agent that chooses instead of generating."
+description = "An inspectable browser agent with local KaLM decisions and guarded execution."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 dependencies = ["browser-harness==0.1.13", "httpx[http2]>=0.28,<1"]
+
+[project.urls]
+Repository = "https://github.com/rcrandon/jev-ultrafast"
+Issues = "https://github.com/rcrandon/jev-ultrafast/issues"
+Documentation = "https://github.com/rcrandon/jev-ultrafast/blob/main/docs/setup.md"
+Upstream = "https://github.com/browser-use/jev-ultrafast"
 
 [project.scripts]
 jev = "jev_ultrafast.demo:main"
